@@ -2,7 +2,16 @@
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF
-from PyQt5.QtGui import QPainter, QColor, QPainterPath, QFont, QFontMetrics, QPen, QBrush
+from PyQt5.QtGui import (
+    QPainter,
+    QColor,
+    QPainterPath,
+    QFont,
+    QFontMetrics,
+    QPen,
+    QBrush,
+    QTextOption,
+)
 from PyQt5.QtWidgets import (
     QApplication,
     QLabel,
@@ -118,6 +127,12 @@ class BubbleWidget(QWidget):
         self.text_browser.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self.text_browser.setOpenLinks(False)
 
+        # 文本换行策略：即使是长单词/URL 也在气泡宽度内换行，避免水平溢出
+        doc = self.text_browser.document()
+        option = doc.defaultTextOption()
+        option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        doc.setDefaultTextOption(option)
+
         self.text_browser.setStyleSheet(
             f"""
             QTextBrowser {{
@@ -214,11 +229,16 @@ class BubbleWidget(QWidget):
         else:
             self.text_browser.setMarkdown(self.text)
 
-        # 计算高度
+        # 计算宽高，限制在 MAX_WIDTH 内部，避免气泡内容水平溢出
         doc = self.text_browser.document()
-        doc.setTextWidth(self.MAX_WIDTH - 28)
+        content_width = max(0, self.MAX_WIDTH - 28)  # 减去左右内边距
+        doc.setTextWidth(content_width)
         height = doc.size().height()
+
+        self.text_browser.setFixedWidth(content_width)
         self.text_browser.setFixedHeight(int(max(height, 24)))
+        # 气泡整体宽度 = 内容宽度 + 左右内边距
+        self.setFixedWidth(self.MAX_WIDTH)
         self.setFixedHeight(int(height + 20))
 
     def set_text(self, text: str):
