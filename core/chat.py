@@ -1,9 +1,12 @@
 """聊天服务模块 - OpenAI API 调用"""
-from typing import Optional, Generator
+from typing import Optional, Generator, Dict, Any, TYPE_CHECKING
 
 from openai import OpenAI
 
 from utils.config_loader import ConfigLoader
+
+if TYPE_CHECKING:
+    from core.persona import PersonaManager
 
 
 class ChatError(Exception):
@@ -28,6 +31,10 @@ class ChatService:
         self.max_tokens = api_config.get("max_tokens", 2048)
         self.temperature = config.get("chat", {}).get("temperature", 0.7)
         self._context_limit = config.get("chat", {}).get("context_limit", 128000)
+        
+        # Agent 模式支持
+        self._use_agent = config.get("agent", {}).get("enabled", False)
+        self._agent_service = None
 
     def chat(self, messages: list) -> str:
         """
@@ -42,6 +49,10 @@ class ChatService:
         Raises:
             ChatError: API 调用失败
         """
+        # 如果启用了 Agent 模式，使用 Agent 服务
+        if self._use_agent and self._agent_service:
+            return self._agent_service.chat(messages)
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -66,6 +77,11 @@ class ChatService:
         Raises:
             ChatError: API 调用失败
         """
+        # 如果启用了 Agent 模式，使用 Agent 服务
+        if self._use_agent and self._agent_service:
+            yield from self._agent_service.chat_stream(messages)
+            return
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -119,3 +135,76 @@ class ChatService:
         self.max_tokens = api_config.get("max_tokens", 2048)
         self.temperature = config.get("chat", {}).get("temperature", 0.7)
         self._context_limit = config.get("chat", {}).get("context_limit", 128000)
+        
+        # 更新 Agent 模式配置
+        self._use_agent = config.get("agent", {}).get("enabled", False)
+        
+        # 如果有 Agent 服务，也更新它
+        if self._agent_service:
+            self._agent_service.update_config(config)
+    
+    def enable_agent_mode(
+        self,
+        persona_manager: "PersonaManager",
+        handlers: Optional[Dict[str, Any]] = None
+    ):
+        """
+        启用 Agent 模式
+        
+        Args:
+            persona_manager: PersonaManager 实例
+            handlers: 可选的技能处理器字典
+        """
+        from core.agent_chat import create_agent_chat_service
+        
+        self._use_agent = True
+        self._agent_service = create_agent_chat_service(
+            config={"api": {
+                "api_key": self.client.api_key,
+                "base_url": self.client.base_url,
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+            }},
+            persona_manager=persona_manager,
+            use_agent=True,
+            handlers=handlers
+        )
+    
+    def disable_agent_mode(self):
+        """禁用 Agent 模式"""
+        self._use_agent = False
+        self._agent_service = None
+    
+    @property
+    def is_agent_mode(self) -> bool:
+        """是否处于 Agent 模式"""
+        return self._use_agent and self._agent_service is not None
+
+
+def create_chat_service(
+    config: dict,
+    persona_manager: Optional["PersonaManager"] = None,
+    use_agent: bool = False,
+    handlers: Optional[Dict[str, Any]] = None
+) -> ChatService:
+    """
+    工厂函数：创建聊天服务
+    
+    根据参数选择使用传统模式或 Agent 模式
+    
+    Args:
+        config: 配置字典
+        persona_manager: PersonaManager 实例（Agent 模式必需）
+        use_agent: 是否使用 Agent 模式
+        handlers: 可选的技能处理器字典
+        
+    Returns:
+        ChatService 实例
+    """
+    service = ChatService(config)
+    
+    if use_agent and persona_manager:
+        service.enable_agent_mode(persona_manager, handlers)
+    
+    return service

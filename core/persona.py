@@ -1,10 +1,13 @@
 """人设管理模块"""
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 import os
 import re
 import json
 
 from openai import OpenAI
+
+if TYPE_CHECKING:
+    from core.skill_tool import SkillToolChain
 
 
 # 默认常量
@@ -147,6 +150,219 @@ def build_skills_prompt(skills: Dict[str, dict]) -> str:
     return "\n".join(lines)
 
 
+class SkillLoader:
+    """
+    链式技能加载器
+    
+    支持链式调用加载技能：
+    
+    ```python
+    loader = SkillLoader()
+    skills = (loader
+        .from_directory("skills")
+        .from_directory("extra_skills")
+        .filter(lambda s: s.get("enabled", True))
+        .build())
+    ```
+    """
+    
+    def __init__(self):
+        self._skills: Dict[str, dict] = {}
+        self._load_order: List[str] = []
+    
+    def load(
+        self,
+        skill_key: str,
+        skill_info: dict
+    ) -> "SkillLoader":
+        """
+        加载单个技能
+        
+        Args:
+            skill_key: 技能键名
+            skill_info: 技能信息
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        if skill_key not in self._skills:
+            self._load_order.append(skill_key)
+        self._skills[skill_key] = skill_info
+        return self
+    
+    def load_dict(
+        self,
+        skills: Dict[str, dict]
+    ) -> "SkillLoader":
+        """
+        从字典加载技能
+        
+        Args:
+            skills: 技能字典
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        for skill_key, skill_info in skills.items():
+            self.load(skill_key, skill_info)
+        return self
+    
+    def from_directory(
+        self,
+        directory: str
+    ) -> "SkillLoader":
+        """
+        从目录加载技能
+        
+        Args:
+            directory: 技能目录路径
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        skills = load_skills(directory)
+        return self.load_dict(skills)
+    
+    def from_directories(
+        self,
+        directories: List[str]
+    ) -> "SkillLoader":
+        """
+        从多个目录加载技能
+        
+        Args:
+            directories: 目录列表
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        for directory in directories:
+            self.from_directory(directory)
+        return self
+    
+    def filter(
+        self,
+        predicate: callable
+    ) -> "SkillLoader":
+        """
+        过滤技能
+        
+        Args:
+            predicate: 过滤函数，接收 skill_info，返回 bool
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        filtered = {}
+        for key in self._load_order:
+            if key in self._skills and predicate(self._skills[key]):
+                filtered[key] = self._skills[key]
+        self._skills = filtered
+        self._load_order = list(filtered.keys())
+        return self
+    
+    def map(
+        self,
+        transformer: callable
+    ) -> "SkillLoader":
+        """
+        转换技能
+        
+        Args:
+            transformer: 转换函数，接收 (skill_key, skill_info)，返回新的 skill_info
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        for key in self._load_order:
+            if key in self._skills:
+                self._skills[key] = transformer(key, self._skills[key])
+        return self
+    
+    def exclude(
+        self,
+        skill_keys: List[str]
+    ) -> "SkillLoader":
+        """
+        排除指定技能
+        
+        Args:
+            skill_keys: 要排除的技能键名列表
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        for key in skill_keys:
+            if key in self._skills:
+                del self._skills[key]
+                self._load_order.remove(key)
+        return self
+    
+    def only(
+        self,
+        skill_keys: List[str]
+    ) -> "SkillLoader":
+        """
+        只保留指定技能
+        
+        Args:
+            skill_keys: 要保留的技能键名列表
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        self._skills = {
+            k: self._skills[k] 
+            for k in skill_keys 
+            if k in self._skills
+        }
+        self._load_order = [k for k in self._load_order if k in self._skills]
+        return self
+    
+    def build(self) -> Dict[str, dict]:
+        """
+        构建并返回技能字典
+        
+        Returns:
+            技能字典
+        """
+        return self._skills.copy()
+    
+    def to_tool_chain(self) -> "SkillToolChain":
+        """
+        转换为 SkillToolChain
+        
+        Returns:
+            SkillToolChain 实例
+        """
+        from core.skill_tool import SkillToolChain
+        return SkillToolChain().load_batch(self._skills)
+    
+    def clear(self) -> "SkillLoader":
+        """
+        清空已加载的技能
+        
+        Returns:
+            返回自身，支持链式调用
+        """
+        self._skills.clear()
+        self._load_order.clear()
+        return self
+    
+    def __len__(self) -> int:
+        """返回技能数量"""
+        return len(self._skills)
+    
+    def __iter__(self):
+        """支持迭代"""
+        for key in self._load_order:
+            yield key, self._skills[key]
+    
+    def __contains__(self, skill_key: str) -> bool:
+        """检查技能是否存在"""
+        return skill_key in self._skills
+
+
 class PersonaManager:
     """人设管理器，负责管理 AI 人设和用户偏好"""
 
@@ -181,12 +397,67 @@ class PersonaManager:
         self.skills_dir = config.get("skills", {}).get("directory", "skills")
         self.skills_enabled = config.get("skills", {}).get("enabled", True)
         self._loaded_skills: Optional[Dict[str, dict]] = None
+        self._skill_loader: Optional[SkillLoader] = None
 
     def get_skills(self) -> Dict[str, dict]:
         """获取加载的技能（懒加载）"""
         if self._loaded_skills is None and self.skills_enabled:
             self._loaded_skills = load_skills(self.skills_dir)
         return self._loaded_skills or {}
+
+    def get_skill_loader(self) -> SkillLoader:
+        """
+        获取链式技能加载器（懒加载）
+        
+        Returns:
+            SkillLoader 实例
+        """
+        if self._skill_loader is None:
+            self._skill_loader = SkillLoader()
+            if self.skills_enabled and self.skills_dir:
+                self._skill_loader.from_directory(self.skills_dir)
+        return self._skill_loader
+    
+    def reload_skills(self) -> "PersonaManager":
+        """
+        重新加载技能
+        
+        Returns:
+            返回自身，支持链式调用
+        """
+        self._loaded_skills = None
+        self._skill_loader = None
+        return self
+    
+    def add_skill_directory(self, directory: str) -> "PersonaManager":
+        """
+        添加额外的技能目录
+        
+        Args:
+            directory: 技能目录路径
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        loader = self.get_skill_loader()
+        loader.from_directory(directory)
+        self._loaded_skills = loader.build()
+        return self
+    
+    def filter_skills(self, predicate: callable) -> "PersonaManager":
+        """
+        过滤技能
+        
+        Args:
+            predicate: 过滤函数
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        loader = self.get_skill_loader()
+        loader.filter(predicate)
+        self._loaded_skills = loader.build()
+        return self
 
     def get_system_message(self) -> dict:
         """
