@@ -4,9 +4,13 @@ from typing import Optional, Generator, Dict, Any, TYPE_CHECKING
 from openai import OpenAI
 
 from utils.config_loader import ConfigLoader
+from utils.logger import get_logger
 
 if TYPE_CHECKING:
     from core.persona import PersonaManager
+
+# 模块日志
+log = get_logger("chat")
 
 
 class ChatError(Exception):
@@ -35,6 +39,8 @@ class ChatService:
         # Agent 模式支持
         self._use_agent = config.get("agent", {}).get("enabled", False)
         self._agent_service = None
+        
+        log.info(f"ChatService 初始化完成, model={self.model}, base_url={api_config.get('base_url')}")
 
     def chat(self, messages: list) -> str:
         """
@@ -51,8 +57,10 @@ class ChatService:
         """
         # 如果启用了 Agent 模式，使用 Agent 服务
         if self._use_agent and self._agent_service:
+            log.debug("使用 Agent 模式处理消息")
             return self._agent_service.chat(messages)
         
+        log.debug(f"发送消息, 消息数量={len(messages)}")
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -60,8 +68,11 @@ class ChatService:
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
             )
-            return response.choices[0].message.content
+            result = response.choices[0].message.content
+            log.debug(f"收到回复, 长度={len(result)}")
+            return result
         except Exception as e:
+            log.error(f"API 调用失败: {str(e)}")
             raise ChatError(f"API 调用失败: {str(e)}")
 
     def chat_stream(self, messages: list) -> Generator[str, None, None]:
@@ -79,9 +90,11 @@ class ChatService:
         """
         # 如果启用了 Agent 模式，使用 Agent 服务
         if self._use_agent and self._agent_service:
+            log.debug("使用 Agent 模式流式处理消息")
             yield from self._agent_service.chat_stream(messages)
             return
         
+        log.debug(f"流式发送消息, 消息数量={len(messages)}")
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -90,10 +103,14 @@ class ChatService:
                 temperature=self.temperature,
                 stream=True,
             )
+            chunk_count = 0
             for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
+                    chunk_count += 1
                     yield chunk.choices[0].delta.content
+            log.debug(f"流式响应完成, chunks={chunk_count}")
         except Exception as e:
+            log.error(f"API 调用失败: {str(e)}")
             raise ChatError(f"API 调用失败: {str(e)}")
 
     def count_tokens(self, messages: list) -> int:
@@ -157,19 +174,31 @@ class ChatService:
         """
         from core.agent_chat import create_agent_chat_service
         
+        log.info("启用 Agent 模式...")
         self._use_agent = True
+        
+        # 获取 API 配置（确保是字符串类型）
+        api_key = getattr(self.client, 'api_key', None)
+        base_url = str(getattr(self.client, 'base_url', 'https://api.openai.com/v1'))
+        
+        if not api_key:
+            log.warning("API Key 未设置，Agent 模式可能无法正常工作")
+        
         self._agent_service = create_agent_chat_service(
-            config={"api": {
-                "api_key": self.client.api_key,
-                "base_url": self.client.base_url,
-                "model": self.model,
-                "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
-            }},
+            config={
+                "api": {
+                    "api_key": api_key or "",
+                    "base_url": base_url,
+                    "model": self.model,
+                    "max_tokens": self.max_tokens,
+                    "temperature": self.temperature,
+                }
+            },
             persona_manager=persona_manager,
             use_agent=True,
             handlers=handlers
         )
+        log.info(f"Agent 模式已启用, 已加载 {len(self._agent_service.agent.tools)} 个工具")
     
     def disable_agent_mode(self):
         """禁用 Agent 模式"""

@@ -9,6 +9,11 @@ from openai import OpenAI
 if TYPE_CHECKING:
     from core.skill_tool import SkillToolChain
 
+from utils.logger import get_logger
+
+# 模块日志
+log = get_logger("persona")
+
 
 # 默认常量
 DEFAULT_NAME = "皮卡丘"
@@ -93,6 +98,7 @@ def load_skills(skills_dir: str = "skills") -> Dict[str, dict]:
     """
     skills = {}
     if not os.path.exists(skills_dir):
+        log.warning(f"技能目录不存在: {skills_dir}")
         return skills
 
     for item in os.listdir(skills_dir):
@@ -119,9 +125,12 @@ def load_skills(skills_dir: str = "skills") -> Dict[str, dict]:
             }
 
             skills[item] = skill_info
-        except Exception:
+            log.debug(f"加载技能: {item} - {skill_info.get('description', '')[:50]}")
+        except Exception as e:
+            log.warning(f"加载技能失败 {item}: {e}")
             continue
 
+    log.info(f"从 {skills_dir} 加载了 {len(skills)} 个技能")
     return skills
 
 

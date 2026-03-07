@@ -5,6 +5,11 @@ if TYPE_CHECKING:
     from core.agent import PetAgent
     from core.persona import PersonaManager
 
+from utils.logger import get_logger
+
+# 模块日志
+log = get_logger("agent_chat")
+
 
 class AgentChatService:
     """
@@ -82,9 +87,15 @@ class AgentChatService:
                 history.append(msg)
         
         if not user_message:
+            log.warning("chat_stream: 没有用户消息")
             return
         
-        yield from self.agent.chat_stream(user_message, history)
+        log.debug(f"chat_stream: user_message={user_message[:50]}...")
+        try:
+            yield from self.agent.chat_stream(user_message, history)
+        except Exception as e:
+            log.error(f"chat_stream 失败: {e}")
+            yield f"抱歉，处理消息时出错了: {str(e)}"
     
     def count_tokens(self, messages: list) -> int:
         """
@@ -162,6 +173,7 @@ class AgentChatFactory:
         # 创建 Agent 配置
         api_config = config.get("api", {})
         agent_config = AgentConfig.from_dict(api_config)
+        log.info(f"创建 Agent: model={agent_config.model}, base_url={agent_config.base_url}")
         
         # 创建 Agent
         agent = PetAgent(
@@ -172,9 +184,16 @@ class AgentChatFactory:
         
         # 链式加载技能
         if persona_manager.skills_enabled:
+            log.info(f"技能已启用，目录: {persona_manager.skills_dir}")
             skill_loader = persona_manager.get_skill_loader()
             skills = skill_loader.build()
-            agent.load_skills(skills)
+            log.info(f"从 SkillLoader 获取到 {len(skills)} 个技能")
+            if skills:
+                agent.load_skills(skills)
+            else:
+                log.warning("没有找到任何技能")
+        else:
+            log.info("技能未启用")
         
         return AgentChatService(agent, persona_manager)
     

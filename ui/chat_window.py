@@ -365,9 +365,26 @@ class ChatWorker(QThread):
             for chunk in self.chat_service.chat_stream(self.messages):
                 full_response += chunk
                 self.chunk_received.emit(chunk)
+            # 最终清理：移除可能残留的工具调用标记
+            full_response = self._clean_tool_markers(full_response)
             self.finished.emit(full_response)
         except Exception as e:
             self.error.emit(str(e))
+    
+    def _clean_tool_markers(self, content: str) -> str:
+        """清理模型输出的工具调用标记"""
+        import re
+        # 移除 minimax:tool_call ... /minimax:tool_call 标记及其内容
+        content = re.sub(r'minimax:tool_call\s*.*?/minimax:tool_call', '', content, flags=re.DOTALL)
+        # 移除残留的单独标记
+        content = re.sub(r'minimax:tool_call\s*', '', content)
+        content = re.sub(r'/minimax:tool_call\s*', '', content)
+        # 移除其他工具调用标记
+        content = re.sub(r'<antml:function_calls>.*?</antml:function_calls>', '', content, flags=re.DOTALL)
+        content = re.sub(r'<function_calls>.*?</function_calls>', '', content, flags=re.DOTALL)
+        # 清理多余空白
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        return content.strip()
 
 
 class ProfileAnalyzeWorker(QThread):

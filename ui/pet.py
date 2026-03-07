@@ -22,6 +22,10 @@ from core.persona import PersonaManager
 from ui.chat_window import ChatWindow
 from ui.settings_dialog import SettingsDialog
 from utils.config_loader import ConfigLoader
+from utils.logger import get_logger, init_logging
+
+# 模块日志
+log = get_logger("pet")
 
 # 默认状态配置
 DEFAULT_STATES = {
@@ -76,9 +80,11 @@ class DesktopPet(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        log.info("初始化桌面宠物...")
 
         # 加载配置
         self.config = ConfigLoader.load()
+        log.debug(f"配置加载完成")
 
         # 初始化核心模块
         self.chat_service = ChatService(self.config)
@@ -86,6 +92,14 @@ class DesktopPet(QWidget):
         self.memory_manager = MemoryManager(self.config, self.chat_service, self.compressor)
         self.memory_manager.load_from_file()
         self.persona_manager = PersonaManager(self.config)
+        
+        # 启用 Agent 模式（支持技能调用）
+        agent_enabled = self.config.get("agent", {}).get("enabled", True)
+        if agent_enabled:
+            log.info("启用 Agent 模式，加载技能...")
+            self.chat_service.enable_agent_mode(self.persona_manager)
+        
+        log.info(f"核心模块初始化完成, 宠物名称: {self.persona_manager.name}, Agent模式: {agent_enabled}")
 
         # 加载状态配置
         self._load_states_config()
@@ -524,9 +538,14 @@ class DesktopPet(QWidget):
 
 def main():
     """主入口"""
+    # 初始化日志系统
+    init_logging()
+    log.info("桌面宠物应用启动")
+    
     app = QApplication(sys.argv)
     pet = DesktopPet()
     pet.show()
+    log.info("桌面宠物窗口已显示")
     sys.exit(app.exec_())
 
 

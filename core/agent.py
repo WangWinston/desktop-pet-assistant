@@ -7,6 +7,10 @@ from langchain_openai import ChatOpenAI
 from langchain_core.callbacks import BaseCallbackHandler
 
 from core.skill_tool import SkillToolChain, create_skill_tools
+from utils.logger import get_logger
+
+# 模块日志
+log = get_logger("agent")
 
 
 class StreamHandler(BaseCallbackHandler):
@@ -103,6 +107,7 @@ class PetAgent:
     
     def _init_llm(self):
         """初始化 LLM"""
+        log.info(f"初始化 LLM: model={self.config.model}, base_url={self.config.base_url}")
         self._llm = ChatOpenAI(
             api_key=self.config.api_key,
             base_url=self.config.base_url,
@@ -115,6 +120,7 @@ class PetAgent:
         # 如果有工具，绑定到 LLM
         if self._tools:
             self._llm_with_tools = self._llm.bind_tools(self._tools)
+            log.debug(f"绑定 {len(self._tools)} 个工具到 LLM")
         else:
             self._llm_with_tools = None
     
@@ -145,6 +151,8 @@ class PetAgent:
         Returns:
             返回自身，支持链式调用
         """
+        skill_name = skill_info.get("name", "unknown")
+        log.info(f"加载技能: {skill_name}")
         self.tool_chain.load(skill_info, handler)
         self._tools = self.tool_chain.build()
         self._rebuild_agent()
@@ -165,6 +173,7 @@ class PetAgent:
         Returns:
             返回自身，支持链式调用
         """
+        log.info(f"批量加载 {len(skills)} 个技能: {list(skills.keys())}")
         self.tool_chain.load_batch(skills, handlers)
         self._tools = self.tool_chain.build()
         self._rebuild_agent()
@@ -185,8 +194,10 @@ class PetAgent:
         Returns:
             返回自身，支持链式调用
         """
+        log.info(f"从目录加载技能: {directory}")
         self.tool_chain.load_from_directory(directory, handlers)
         self._tools = self.tool_chain.build()
+        log.debug(f"已加载 {len(self._tools)} 个工具")
         self._rebuild_agent()
         return self
     
@@ -258,6 +269,8 @@ class PetAgent:
         Returns:
             AI 回复
         """
+        log.debug(f"chat() 收到消息: {message[:100]}...")
+        
         # 转换历史消息
         chat_history = self._convert_history(history)
         
@@ -273,37 +286,51 @@ class PetAgent:
         
         # 使用带工具的 LLM 或普通 LLM
         llm_to_use = self._llm_with_tools if self._llm_with_tools else self._llm
+        log.debug(f"使用 LLM: {'with_tools' if self._llm_with_tools else 'plain'}")
         
-        response = llm_to_use.invoke(messages)
+        try:
+            response = llm_to_use.invoke(messages)
+        except Exception as e:
+            log.error(f"LLM 调用失败: {e}")
+            return f"抱歉，处理消息时出错了: {str(e)}"
         
         # 如果有工具调用，执行工具并获取最终响应
         if hasattr(response, 'tool_calls') and response.tool_calls:
+            log.info(f"检测到 {len(response.tool_calls)} 个工具调用")
             # 执行工具调用
             tool_messages = []
             for tool_call in response.tool_calls:
                 tool_name = tool_call['name']
                 tool_args = tool_call.get('args', {})
+                log.info(f"执行工具: {tool_name}, 参数: {tool_args}")
                 
                 # 查找并执行对应的工具
+                tool_found = False
                 for tool in self._tools:
                     if tool.name == tool_name:
+                        tool_found = True
                         try:
                             result = tool._run(
                                 query=tool_args.get('query', ''),
                                 context=tool_args.get('context', '')
                             )
+                            log.debug(f"工具 {tool_name} 执行成功, 结果长度: {len(result)}")
                             tool_messages.append({
                                 'role': 'tool',
                                 'content': result,
                                 'tool_call_id': tool_call.get('id', '')
                             })
                         except Exception as e:
+                            log.error(f"工具 {tool_name} 执行失败: {e}")
                             tool_messages.append({
                                 'role': 'tool',
                                 'content': f"工具执行错误: {str(e)}",
                                 'tool_call_id': tool_call.get('id', '')
                             })
                         break
+                
+                if not tool_found:
+                    log.warning(f"未找到工具: {tool_name}")
             
             # 添加工具调用结果到消息，再次调用 LLM
             messages.append(response)
@@ -314,10 +341,42 @@ class PetAgent:
                     tool_call_id=tm['tool_call_id']
                 ))
             
-            final_response = self._llm.invoke(messages)
-            return final_response.content
+            log.debug("调用 LLM 生成最终响应...")
+            try:
+                final_response = self._llm.invoke(messages)
+                return final_response.content
+            except Exception as e:
+                log.error(f"最终响应生成失败: {e}")
+                return f"工具调用后生成响应失败: {str(e)}"
         
-        return response.content
+        log.debug(f"无工具调用，直接返回响应")
+        # 清理 MiniMax 模型的工具调用标记
+        content = response.content
+        content = self._clean_tool_call_markers(content)
+        return content
+    
+    def _clean_tool_call_markers(self, content: str) -> str:
+        """清理 MiniMax 模型的工具调用标记"""
+        import re
+        # 移除 minimax:tool_call ... /minimax:tool_call 标记及其内容
+        content = re.sub(r'minimax:tool_call\s*.*?/minimax:tool_call', '', content, flags=re.DOTALL)
+        # 移除可能残留的单独标记
+        content = re.sub(r'minimax:tool_call\s*', '', content)
+        content = re.sub(r'/minimax:tool_call\s*', '', content)
+        # 移除其他常见工具调用标记
+        content = re.sub(r'<antml:function_calls>.*?</antml:function_calls>', '', content, flags=re.DOTALL)
+        content = re.sub(r'<function_calls>.*?</function_calls>', '', content, flags=re.DOTALL)
+        # 清理多余空白
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        return content.strip()
+    
+    def _should_filter_chunk(self, content: str) -> bool:
+        """判断是否应该过滤掉这个 chunk（包含工具调用标记）"""
+        markers = ['minimax:tool_call', '/minimax:tool_call', '', '<function_calls>']
+        for marker in markers:
+            if marker in content:
+                return True
+        return False
     
     def chat_stream(
         self,
@@ -334,6 +393,8 @@ class PetAgent:
         Yields:
             AI 回复片段
         """
+        log.debug(f"chat_stream() 收到消息: {message[:100]}...")
+        
         # 转换历史消息
         chat_history = self._convert_history(history)
         
@@ -349,38 +410,53 @@ class PetAgent:
         
         # 使用带工具的 LLM 或普通 LLM
         llm_to_use = self._llm_with_tools if self._llm_with_tools else self._llm
+        log.debug(f"使用 LLM: {'with_tools' if self._llm_with_tools else 'plain'}")
         
-        # 先检查是否有工具调用
-        response = llm_to_use.invoke(messages)
+        try:
+            # 先检查是否有工具调用
+            response = llm_to_use.invoke(messages)
+        except Exception as e:
+            log.error(f"LLM 调用失败: {e}")
+            yield f"抱歉，处理消息时出错了: {str(e)}"
+            return
         
         # 如果有工具调用，执行工具并获取最终响应
         if hasattr(response, 'tool_calls') and response.tool_calls:
+            log.info(f"检测到 {len(response.tool_calls)} 个工具调用")
             # 执行工具调用
             tool_messages = []
             for tool_call in response.tool_calls:
                 tool_name = tool_call['name']
                 tool_args = tool_call.get('args', {})
+                log.info(f"执行工具: {tool_name}, 参数: {tool_args}")
                 
                 # 查找并执行对应的工具
+                tool_found = False
                 for tool in self._tools:
                     if tool.name == tool_name:
+                        tool_found = True
                         try:
                             result = tool._run(
                                 query=tool_args.get('query', ''),
                                 context=tool_args.get('context', '')
                             )
+                            log.debug(f"工具 {tool_name} 执行成功, 结果长度: {len(result)}")
                             tool_messages.append({
                                 'role': 'tool',
                                 'content': result,
                                 'tool_call_id': tool_call.get('id', '')
                             })
                         except Exception as e:
+                            log.error(f"工具 {tool_name} 执行失败: {e}")
                             tool_messages.append({
                                 'role': 'tool',
                                 'content': f"工具执行错误: {str(e)}",
                                 'tool_call_id': tool_call.get('id', '')
                             })
                         break
+                
+                if not tool_found:
+                    log.warning(f"未找到工具: {tool_name}")
             
             # 添加工具调用结果到消息，再次调用 LLM
             messages.append(response)
@@ -391,15 +467,39 @@ class PetAgent:
                     tool_call_id=tm['tool_call_id']
                 ))
             
-            # 流式输出最终响应
-            for chunk in self._llm.stream(messages):
-                if chunk.content:
-                    yield chunk.content
+            log.debug("流式输出最终响应...")
+            chunk_count = 0
+            try:
+                # 流式输出最终响应
+                for chunk in self._llm.stream(messages):
+                    if chunk.content:
+                        chunk_count += 1
+                        if chunk_count <= 3:  # 只记录前几个 chunk
+                            log.debug(f"chunk {chunk_count}: {chunk.content[:50]}...")
+                        # 清理 MiniMax 工具调用标记
+                        cleaned = self._clean_tool_call_markers(chunk.content)
+                        if cleaned:
+                            yield cleaned
+                log.debug(f"流式输出完成, chunks={chunk_count}")
+            except Exception as e:
+                log.error(f"流式输出失败: {e}")
+                yield f"生成响应失败: {str(e)}"
         else:
-            # 没有工具调用，直接流式输出
-            for chunk in self._llm.stream(messages):
-                if chunk.content:
-                    yield chunk.content
+            log.debug("无工具调用，直接流式输出")
+            chunk_count = 0
+            try:
+                # 没有工具调用，直接流式输出
+                for chunk in self._llm.stream(messages):
+                    if chunk.content:
+                        chunk_count += 1
+                        # 清理 MiniMax 工具调用标记
+                        cleaned = self._clean_tool_call_markers(chunk.content)
+                        if cleaned:
+                            yield cleaned
+                log.debug(f"流式输出完成, chunks={chunk_count}")
+            except Exception as e:
+                log.error(f"流式输出失败: {e}")
+                yield f"生成响应失败: {str(e)}"
     
     def _convert_history(
         self,
