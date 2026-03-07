@@ -2,10 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(python -m py_compile core/persona.py ui/settings_dialog.py)",
-      "Bash(timeout 5 python main.py)",
-      "Bash(python -m py_compile ui/chat_window.py ui/settings_dialog.py)",
-      "Bash(python -m py_compile ui/chat_window.py)",
-      "Bash(python -m py_compile ui/settings_dialog.py)"
+      "Bash(python -m py_compile core/persona.py)"
     ]
   }
 }

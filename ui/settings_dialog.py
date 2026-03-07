@@ -1,4 +1,5 @@
 """设置对话框模块 - 修复所有问题"""
+import os
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QComboBox, QFileDialog, QInputDialog, QDialog, QHBoxLayout,
@@ -179,7 +180,8 @@ class SettingsDialog(QDialog):
         basic_layout.addWidget(persona_title)
 
         # 固定宠物名字显示
-        name_label = QLabel("宠物名字: 皮卡丘")
+        from core.persona import DEFAULT_NAME
+        name_label = QLabel(f"宠物名字: {DEFAULT_NAME}")
         name_label.setStyleSheet("color: #666; font-size: 13px; padding: 8px 0;")
         basic_layout.addWidget(name_label)
 
@@ -200,65 +202,36 @@ class SettingsDialog(QDialog):
         self.duties_input.setPlaceholderText("陪伴用户、提醒休息、聊天解闷...")
         basic_layout.addWidget(self.duties_input)
 
-        # 用户偏好
-        prefs_header = QHBoxLayout()
-        prefs_title = QLabel("📋 用户偏好")
-        prefs_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333;")
-        prefs_header.addWidget(prefs_title)
-        prefs_header.addStretch()
+        # 用户画像（多维度）
+        from core.persona import USER_PROFILE_DIMENSIONS, DIMENSION_DESCRIPTIONS
 
-        add_btn = QPushButton("+ 添加")
-        add_btn.setFixedHeight(28)
-        add_btn.setCursor(Qt.PointingHandCursor)
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FFD93D, stop:1 #FFC107);
-                color: #333;
-                border: none;
-                border-radius: 6px;
-                font-size: 12px;
-                font-weight: 500;
-                padding: 0 12px;
-            }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FFC107, stop:1 #FF9800); }
-        """)
-        add_btn.clicked.connect(self._add_preference)
-        prefs_header.addWidget(add_btn)
+        profile_title = QLabel("📋 用户画像")
+        profile_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333; margin-top: 12px;")
+        basic_layout.addWidget(profile_title)
 
-        del_btn = QPushButton("删除")
-        del_btn.setFixedHeight(28)
-        del_btn.setCursor(Qt.PointingHandCursor)
-        del_btn.setStyleSheet("""
-            QPushButton {
-                background: #F5F5F5;
-                color: #666;
-                border: 1px solid #E0E0E0;
-                border-radius: 6px;
-                font-size: 12px;
-                padding: 0 12px;
-            }
-            QPushButton:hover { background: #FFEBEE; color: #FF6B6B; border-color: #FFCDD2; }
-        """)
-        del_btn.clicked.connect(self._del_preference)
-        prefs_header.addWidget(del_btn)
+        profile_hint = QLabel("填写你对用户的了解，帮助宠物更好地理解和服务用户")
+        profile_hint.setStyleSheet("color: #999; font-size: 11px; margin-bottom: 4px;")
+        basic_layout.addWidget(profile_hint)
 
-        basic_layout.addLayout(prefs_header)
+        self.profile_inputs = {}
+        user_profile = self.config.get("persona", {}).get("user_profile", {})
 
-        # 列表高度自适应内容，最多显示5条，超出滚动
-        self.prefs_list = QListWidget()
-        self.prefs_list.setMaximumHeight(180)  # 约5条
-        self.prefs_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.prefs_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        for p in self.config.get("persona", {}).get("user_preferences", []):
-            self.prefs_list.addItem(p)
-        # 根据条目数设置高度（最多5条高度）
-        item_count = self.prefs_list.count()
-        if item_count > 5:
-            self.prefs_list.setFixedHeight(180)
-        else:
-            # 自适应高度
-            self.prefs_list.setFixedHeight(max(36, 30 + item_count * 28))
-        basic_layout.addWidget(self.prefs_list)
+        for dim_key, dim_name in USER_PROFILE_DIMENSIONS.items():
+            dim_label = QLabel(f"{dim_name}:")
+            dim_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 6px;")
+            basic_layout.addWidget(dim_label)
+
+            dim_hint = QLabel(DIMENSION_DESCRIPTIONS.get(dim_key, ""))
+            dim_hint.setStyleSheet("color: #AAA; font-size: 10px;")
+            basic_layout.addWidget(dim_hint)
+
+            dim_input = QPlainTextEdit()
+            dim_input.setPlainText(user_profile.get(dim_key, ""))
+            dim_input.setMinimumHeight(60)
+            dim_input.setPlaceholderText(f"描述用户的{dim_name}...")
+            basic_layout.addWidget(dim_input)
+
+            self.profile_inputs[dim_key] = dim_input
 
         basic_layout.addStretch()
         basic_scroll.setWidget(basic_content)
@@ -377,6 +350,95 @@ class SettingsDialog(QDialog):
         state_layout.addStretch()
         state_scroll.setWidget(state_content)
         tabs.addTab(state_scroll, "状态")
+
+        # === 扩展设置 ===
+        ext_scroll = QScrollArea()
+        ext_scroll.setWidgetResizable(True)
+        ext_scroll.setFrameShape(QScrollArea.NoFrame)
+        ext_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        ext_content = QWidget()
+        ext_layout = QVBoxLayout(ext_content)
+        ext_layout.setSpacing(10)
+
+        # 技能配置
+        skills_title = QLabel("🔧 技能配置")
+        skills_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333;")
+        ext_layout.addWidget(skills_title)
+
+        skills_hint = QLabel("配置技能模块目录，AI将自动加载目录中的技能")
+        skills_hint.setStyleSheet("color: #999; font-size: 11px; margin-bottom: 4px;")
+        ext_layout.addWidget(skills_hint)
+
+        # 启用技能
+        self.skills_enabled_cb = QRadioButton("启用技能系统")
+        self.skills_enabled_cb.setChecked(self.config.get("skills", {}).get("enabled", True))
+        self.skills_enabled_cb.setStyleSheet("font-size: 13px; color: #333;")
+        ext_layout.addWidget(self.skills_enabled_cb)
+
+        # 技能目录
+        skills_dir_label = QLabel("技能目录:")
+        skills_dir_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 8px;")
+        ext_layout.addWidget(skills_dir_label)
+
+        skills_dir_layout = QHBoxLayout()
+        self.skills_dir_input = QLineEdit()
+        self.skills_dir_input.setText(self.config.get("skills", {}).get("directory", "skills"))
+        self.skills_dir_input.setPlaceholderText("skills")
+        skills_dir_layout.addWidget(self.skills_dir_input)
+
+        browse_skills_btn = QPushButton("浏览")
+        browse_skills_btn.setFixedWidth(70)
+        browse_skills_btn.setFixedHeight(36)
+        browse_skills_btn.setCursor(Qt.PointingHandCursor)
+        browse_skills_btn.setStyleSheet("""
+            QPushButton {
+                background: white;
+                color: #333;
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+                font-size: 13px;
+                font-family: 'Microsoft YaHei UI', sans-serif;
+            }
+            QPushButton:hover { background: #F5F5F5; border-color: #D0D0D0; }
+        """)
+        browse_skills_btn.clicked.connect(self._browse_skills_dir)
+        skills_dir_layout.addWidget(browse_skills_btn)
+        ext_layout.addLayout(skills_dir_layout)
+
+        # 已加载技能列表
+        loaded_title = QLabel("已加载技能:")
+        loaded_title.setStyleSheet("color: #666; font-size: 12px; margin-top: 12px;")
+        ext_layout.addWidget(loaded_title)
+
+        self.skills_list = QListWidget()
+        self.skills_list.setMaximumHeight(150)
+        self.skills_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+                background: white;
+                font-size: 13px;
+                padding: 4px;
+            }
+            QListWidget::item {
+                padding: 6px 10px;
+                border-radius: 4px;
+            }
+        """)
+        # 加载已有技能
+        from core.persona import load_skills
+        skills = load_skills(self.config.get("skills", {}).get("directory", "skills"))
+        for skill_name, skill_info in skills.items():
+            desc = skill_info.get("description", "")[:50]
+            item_text = f"{skill_name}: {desc}..." if len(skill_info.get("description", "")) > 50 else f"{skill_name}: {desc}"
+            self.skills_list.addItem(item_text if desc else skill_name)
+        ext_layout.addWidget(self.skills_list)
+
+        ext_layout.addStretch()
+        ext_scroll.setWidget(ext_content)
+        tabs.addTab(ext_scroll, "扩展")
+
         layout.addWidget(tabs)
 
         # 底部按钮
@@ -417,29 +479,20 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(save_btn)
         layout.addLayout(btn_layout)
 
-    def _add_preference(self):
-        text, ok = QInputDialog.getText(self, "添加偏好", "输入用户偏好:")
-        if ok and text.strip():
-            self.prefs_list.addItem(text.strip())
-            # 更新列表高度
-            count = self.prefs_list.count()
-            if count > 5:
-                self.prefs_list.setFixedHeight(180)
-            else:
-                self.prefs_list.setFixedHeight(max(36, 30 + count * 28))
-
-    def _del_preference(self):
-        row = self.prefs_list.currentRow()
-        if row >= 0:
-            self.prefs_list.takeItem(row)
-            # 更新列表高度
-            count = self.prefs_list.count()
-            if count > 5:
-                self.prefs_list.setFixedHeight(180)
-            elif count > 0:
-                self.prefs_list.setFixedHeight(max(36, 30 + count * 28))
-            else:
-                self.prefs_list.setFixedHeight(36)
+    def _browse_skills_dir(self):
+        """浏览技能目录"""
+        from PyQt5.QtWidgets import QFileDialog
+        from core.persona import load_skills
+        dir_path = QFileDialog.getExistingDirectory(self, "选择技能目录")
+        if dir_path:
+            self.skills_dir_input.setText(dir_path)
+            # 自动加载技能列表
+            self.skills_list.clear()
+            skills = load_skills(dir_path)
+            for skill_name, skill_info in skills.items():
+                desc = skill_info.get("description", "")[:50]
+                item_text = f"{skill_name}: {desc}..." if len(skill_info.get("description", "")) > 50 else f"{skill_name}: {desc}"
+                self.skills_list.addItem(item_text if desc else skill_name)
 
     def _on_size_preset(self, size):
         """预设按钮点击"""
@@ -485,13 +538,26 @@ class SettingsDialog(QDialog):
         self.config["api"]["model"] = self.model_input.text().strip()
 
         self.config.setdefault("persona", {})
-        self.config["persona"]["name"] = "皮卡丘"  # 固定名字
+        from core.persona import DEFAULT_NAME
+        self.config["persona"]["name"] = DEFAULT_NAME  # 固定名字
         self.config["persona"]["duties"] = self.duties_input.toPlainText()
-        self.config["persona"]["user_preferences"] = [self.prefs_list.item(i).text() for i in range(self.prefs_list.count())]
+
+        # 保存用户画像（多维度）
+        from core.persona import USER_PROFILE_DIMENSIONS
+        self.config["persona"]["user_profile"] = {}
+        for dim_key in USER_PROFILE_DIMENSIONS:
+            value = self.profile_inputs[dim_key].toPlainText()
+            if value.strip():
+                self.config["persona"]["user_profile"][dim_key] = value
 
         self.config.setdefault("ui", {})
         self.config["ui"]["pet_size"] = self.get_selected_size()
         self.config["ui"]["chat_window_size"] = self.get_chat_window_size()
+
+        # 保存技能配置
+        self.config.setdefault("skills", {})
+        self.config["skills"]["enabled"] = self.skills_enabled_cb.isChecked()
+        self.config["skills"]["directory"] = self.skills_dir_input.text().strip() or "skills"
 
         ConfigLoader.save(self.config)
 

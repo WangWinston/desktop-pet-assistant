@@ -47,28 +47,22 @@ DEFAULT_STATES = {
 }
 
 
-class SummaryWorker(QThread):
-    """后台总结线程"""
-    finished = pyqtSignal(str)
+class ProfileAnalyzeWorker(QThread):
+    """后台分析用户画像线程"""
+    finished = pyqtSignal(dict)
 
-    def __init__(self, chat_service, messages):
+    def __init__(self, persona_manager, messages, api_config):
         super().__init__()
-        self.chat_service = chat_service
+        self.persona_manager = persona_manager
         self.messages = messages
+        self.api_config = api_config
 
     def run(self):
         try:
-            prompt = """请分析以下对话，提取用户的重要特征、偏好、习惯等，以简洁的列表形式总结（每条不超过20字）：
-
-""" + "\n".join([
-    f"{'用户' if m['role']=='user' else '助手'}: {m['content'][:100]}"
-    for m in self.messages[-30:]
-    if m['role'] in ['user', 'assistant']
-])
-            response = self.chat_service.chat([{"role": "user", "content": prompt}])
-            self.finished.emit(response)
+            profile = self.persona_manager.analyze_user_profile(self.messages, self.api_config)
+            self.finished.emit(profile)
         except:
-            self.finished.emit("")
+            self.finished.emit({})
 
 
 class DesktopPet(QWidget):
@@ -501,29 +495,29 @@ class DesktopPet(QWidget):
         self.memory_manager.save_to_file()
         messages = self.memory_manager.get_messages()
         if len(messages) >= 4:
-            self._do_summary_and_quit()
+            self._do_analyze_and_quit()
         else:
             ConfigLoader.save(self.config)
             QApplication.quit()
 
-    def _do_summary_and_quit(self):
-        """总结并退出"""
-        self.talk_label.setText("正在整理记忆...")
+    def _do_analyze_and_quit(self):
+        """分析用户画像并退出"""
+        self.talk_label.setText("正在分析用户画像...")
         self.talk_label.show()
         QApplication.processEvents()
 
         messages = self.memory_manager.get_messages()
-        worker = SummaryWorker(self.chat_service, messages)
-        worker.finished.connect(lambda summary: self._on_summary_done(summary))
+        api_config = self.config.get("api", {})
+        worker = ProfileAnalyzeWorker(self.persona_manager, messages, api_config)
+        worker.finished.connect(self._on_analyze_done)
         worker.run()
 
-    def _on_summary_done(self, summary: str):
-        """总结完成"""
-        if summary:
-            lines = [l.strip("- ") for l in summary.split("\n") if l.strip()]
-            for line in lines[:5]:
-                if line and len(line) < 50:
-                    self.persona_manager.add_preference(line)
+    def _on_analyze_done(self, profile: dict):
+        """分析完成"""
+        if profile:
+            for dim_key, value in profile.items():
+                if value:
+                    self.persona_manager.update_user_profile(dim_key, value)
         ConfigLoader.save(self.config)
         QApplication.quit()
 

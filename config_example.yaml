@@ -14,9 +14,20 @@ chat:
 persona:
   name: "皮卡丘"
   duties: ""  # 用户自定义主要职责，如: "陪伴用户、提醒休息、聊天解闷"
-  user_preferences:
-    - "用户是一名程序员，经常久坐"
-    - "用户喜欢二次元文化"
+  # 用户画像（多维度）
+  user_profile:
+    daily_details: ""       # 日常细节：作息习惯、兴趣爱好、消费偏好等
+    emotional_response: ""  # 情绪反应：情绪表达方式、压力反应、情感需求等
+    value_choices: ""       # 价值选择：人生优先级、决策倾向、道德观念等
+    social_circle: ""       # 社交圈层：社交频率、人际关系、沟通风格等
+    adversity_response: ""  # 逆境应对：面对困难的态度、应对策略、恢复能力等
+    cognitive_pattern: ""   # 认知格局：思维模式、学习方式、决策风格等
+    solitude_state: ""      # 独处状态：独处习惯、内心对话、自我认知等
+
+# 技能配置
+skills:
+  enabled: true
+  directory: "skills"  # skills 目录路径
 
 ui:
   pet_size: 100

@@ -1,123 +1,213 @@
-# 定制你的宠物桌面
+# 桌面宠物 - 皮卡丘
 
-最近想要做一个自己独一无二的桌面宠物，可以直接使用python来自己订制。属于一个小项目，这个教程主要包含几个步骤：
+一只可爱的桌面宠物，基于 PyQt5 构建，支持 AI 对话功能。
 
-1. 准备需要的动图素材
+## 功能特性
 
-2. 规划自己需要的功能
+- **桌面宠物展示** - 可爱的皮卡丘动画，支持拖拽移动
+- **AI 对话** - 接入 OpenAI 兼容 API，支持智能对话
+- **用户画像** - 多维度记录用户特征，提供个性化服务
+- **技能系统** - 可扩展的技能模块，支持动态加载
+- **休息提醒** - 定时提醒用户休息，保护健康
 
-3. 使用python的PyQt5订制功能
+## 快速开始
 
-在这个教程中，我主要实现了桌面宠物的几个功能：
+### 环境要求
 
-1. 每隔一段时间切换动图素材+文字
-2. 点击宠物时有额外动作
-3. “故事大会”功能：跟宠物聊天，进行文本生成
-4. “休息一下”功能：隔一个小时提醒你休息功能
+- Python 3.8+
+- PyQt5
 
-话不多说，让我们开始把。
+### 安装依赖
 
-# 1. 准备需要的动图素材
-这些素材你可以直接从网上下载找到，比如可以去动图素材网站：
-[https://www.soogif.com/](https://www.soogif.com/)
-
-![图 2](images/da746f9a59ddeae9a6f13a492403746fbf24e5e1df17e91860f6e5d9512d1d2f.png)  
-
-搜索我要的动图“皮卡丘”，下载之后就需要对素材的背景去掉，设置成透明状态。
-
-## 1.1 去除动图背景
-这里可以利用PS（也可以使用网页版PS）工具，对动图去除背景。首先把动图导入到PS中，得到如下所示：
-
-![图 3](images/c2868a9a61dc660b2a4d577de40781b7dd7fdbb435ff92364cc1dc9033d45cf3.png)  
-
-
-其中最右边时每一帧的图片，选中其中一个图片，然后点击显示眼睛按钮：
-
-![图 4](images/ad1c943b125e8db5699bec753f0d342e3caad5ce504465f15a800bf1b7f7562d.png)  
-
-然后利用魔棒工具
-
-![图 5](images/26d1787641302459850eeccb11a346fb1865bb2436a2cc47096019c28513217e.png)  
-
-框选背景图，进行删除：
-
-![图 6](images/134cfb9fc60e2687cdfa24df27b7251034b6256e8322ec10a301fb30c2775938.png)  
-
-
-重复上面操作，最后导出gif图就可以得到纯白背景的动图了。
-
-![图 6](click/20220614223056.gif)  
-
-# 2.python环境安装
-这次功能上，还额外调用了hugging face模块中的文本生成功能，因此需要安装：
-```
-pip install huggingface
+```bash
+pip install -r requirements.txt
 ```
 
-# 3.项目工程
+### 配置
 
-![图 7](images/ecc5c4f9dd15358040a47cab9727dac34e15da6588b6d4101d4c67a395e6bee5.png)  
-
-● main.py：整体功能函数
-
-● dialog.txt：存放随机展示的文本
-
-● pikaqiu：存放随机展示的动图
-
-● talk_show.py：文本生成功能
-
-这里具体介绍怎么使用huggingface导入文本生成模型。
-
-打开huggingface官网：
-
-[https://huggingface.co/](https://huggingface.co/)，然后点击Models，搜索训练好的中文生成模型
-
-![图 8](images/9ea7c27611bb56e87ca69a35b17f76f029cc5a67aa12fe8016843c9cb7b3a7e3.png)  
-
-
-例如我找到一个GPT中文预训练模型：
-
-![图 9](images/5a1f646bd634e25aba4f946fab194cb044f365db06cc99b7b9dcb700209f155c.png)  
-
-
-有两种方法导入，一种是直接利用hugggingface，它会直接下载模型，一种是利用git下载模型：
-
-![图 10](images/b1cd449bb890cd27c444d99f84a3f8507df796606c0f04bc3af6df07062bae7c.png)  
-
-
-下载模型后，仅仅需要几行代码，就可以导入模型生成文本：
-```python
-from transformers import BertTokenizer, GPT2LMHeadModel, TextGenerationPipeline 
-tokenizer = BertTokenizer.from_pretrained("uer/gpt2-chinese-cluecorpussmall")
-model = GPT2LMHeadModel.from_pretrained("uer/gpt2-chinese-cluecorpussmall")
-text_generator = TextGenerationPipeline(model, tokenizer)
+1. 复制配置文件模板：
+```bash
+cp config_example.yaml config.yaml
 ```
 
-# 4.功能展示
+2. 编辑 `config.yaml`，填入你的 API 配置：
+```yaml
+api:
+  base_url: "https://api.openai.com/v1"
+  api_key: "your-api-key-here"
+  model: "gpt-4o-mini"
+```
 
-● 每隔一段时间会变化动图和文字：
+### 运行
 
-![图 11](./images/随机展示.gif)  
+```bash
+python main.py
+```
 
+## 项目结构
 
-● 点击宠物时有额外动作
+```
+├── main.py              # 主入口
+├── config.yaml          # 配置文件
+├── requirements.txt     # 依赖列表
+├── core/
+│   ├── persona.py       # 人设和用户画像管理
+│   ├── chat.py          # AI 对话核心
+│   ├── memory.py        # 上下文记忆
+│   └── compressor.py    # 消息压缩
+├── ui/
+│   ├── pet.py           # 宠物窗口
+│   ├── chat_window.py   # 聊天窗口
+│   └── settings_dialog.py # 设置对话框
+├── skills/              # 技能模块目录
+│   └── weather/         # 天气查询示例
+│       └── SKILL.md     # 技能定义文件
+└── assets/              # 静态资源
+    ├── pikaqiu/         # 皮卡丘动画
+    └── click/           # 点击动画
+```
 
-![图 12](./images/点击.gif)  
+## 用户画像维度
 
-● “故事大会”功能：跟宠物聊天，进行文本生成
+系统支持以下维度的用户画像，帮助宠物更好地理解和陪伴用户：
 
-![图 13](./images/故事大会.gif)  
+| 维度 | 说明 |
+|------|------|
+| 日常细节 | 作息习惯、兴趣爱好、消费偏好等 |
+| 情绪反应 | 情绪表达方式、压力反应、情感需求等 |
+| 价值选择 | 人生优先级、决策倾向、道德观念等 |
+| 社交圈层 | 社交频率、人际关系、沟通风格等 |
+| 逆境应对 | 面对困难的态度、应对策略、恢复能力等 |
+| 认知格局 | 思维模式、学习方式、决策风格等 |
+| 独处状态 | 独处习惯、内心对话、自我认知等 |
 
-● “休息一下”功能：隔一个小时提醒你休息功能
+## 技能系统
 
-![图 13](./images/休息.gif)  
+基于 Agent Skill 规范，使用 `SKILL.md` 文件定义技能。
 
-这是目前项目的所有功能拉，有兴趣的可以下载原代码进行订制属于你的桌面宠物。
+### 添加新技能
 
-这是项目地址：
-[https://github.com/llq20133100095/DeskTopPet](https://github.com/llq20133100095/DeskTopPet)
+1. 在 `skills/` 目录下创建新文件夹，如 `skills/my-skill/`
+2. 创建 `SKILL.md` 文件：
 
-我是leo，我们下期再见~
+```markdown
+---
+name: my-skill
+description: 技能描述，说明功能和适用场景
+---
 
+# 技能标题
 
+## 使用场景
+描述何时使用此技能。
 
+## 执行步骤
+1. 步骤一
+2. 步骤二
+```
+
+### SKILL.md 格式要求
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| name | 是 | 技能名称，仅小写字母、数字、连字符 |
+| description | 是 | 技能描述，1-1024 字符 |
+| license | 否 | 许可证名称 |
+
+### 技能目录结构
+
+```
+skills/
+└── my-skill/
+    ├── SKILL.md          # 必需
+    ├── scripts/          # 可选：可执行脚本
+    ├── references/       # 可选：参考文档
+    └── assets/           # 可选：静态资源
+```
+
+### 启用技能
+
+在 `config.yaml` 中配置：
+
+```yaml
+skills:
+  enabled: true
+  directory: "skills"
+```
+
+### 技能加载
+
+系统启动时自动加载 skills 目录中的技能，将技能名称和描述注入系统提示，AI 可根据用户问题动态引用相关技能。
+
+## 配置说明
+
+```yaml
+# API 配置
+api:
+  base_url: "API 地址"
+  api_key: "API 密钥"
+  model: "模型名称"
+  max_tokens: 2048
+
+# 对话配置
+chat:
+  context_limit: 128000    # 上下文长度限制
+  compress_threshold: 0.8  # 压缩阈值
+  temperature: 0.7         # 生成温度
+
+# 人设配置
+persona:
+  name: "皮卡丘"
+  duties: "主要职责描述"
+  user_profile:            # 用户画像
+    daily_details: ""
+    emotional_response: ""
+    value_choices: ""
+    social_circle: ""
+    adversity_response: ""
+    cognitive_pattern: ""
+    solitude_state: ""
+
+# 技能配置
+skills:
+  enabled: true
+  directory: "skills"
+
+# UI 配置
+ui:
+  pet_size: 100            # 宠物尺寸
+  chat_window_size: "medium"  # 聊天窗口尺寸
+  dialog_interval: 5000    # 对话间隔
+```
+
+## 操作说明
+
+- **拖拽移动** - 按住宠物拖拽到任意位置
+- **右键菜单** - 右键点击宠物打开菜单
+  - 聊天 - 打开聊天窗口
+  - 设置 - 打开设置对话框
+  - 退出 - 关闭程序
+- **聊天窗口** - 点击设置按钮⚙打开设置，点击关闭按钮✕隐藏窗口
+
+## 开发
+
+### 扩展功能
+
+项目采用模块化设计，易于扩展：
+
+1. **添加新状态** - 在 `config.yaml` 的 `states` 中配置
+2. **添加新技能** - 在 `skills/` 目录下创建新模块
+3. **自定义人设** - 修改 `core/persona.py` 中的常量
+
+### 代码风格
+
+- 使用 Python 类型注解
+- 遵循 PEP 8 规范
+
+## 许可证
+
+MIT License
+
+## 致谢
+
+本项目基于 [DeskTopPet](https://github.com/llq20133100095/DeskTopPet) 进行重构和扩展。

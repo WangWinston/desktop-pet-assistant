@@ -36,6 +36,7 @@ class ConfigLoader:
     @staticmethod
     def get_default() -> dict:
         """获取默认配置"""
+        from core.persona import DEFAULT_NAME, DEFAULT_DUTIES
         return {
             "api": {
                 "base_url": "https://api.openai.com/v1",
@@ -49,9 +50,9 @@ class ConfigLoader:
                 "temperature": 0.7,
             },
             "persona": {
-                "name": "皮卡丘",
-                "system_prompt": "你是一只可爱的桌面宠物。",
-                "user_preferences": [],
+                "name": DEFAULT_NAME,
+                "duties": DEFAULT_DUTIES,
+                "user_profile": {},
             },
             "ui": {"pet_size": 180, "dialog_interval": 5000},
             "history": {"auto_save": True, "file": "data/chat_history.json"},

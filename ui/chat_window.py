@@ -86,6 +86,9 @@ class Radius:
 class BubbleWidget(QWidget):
     """圆角气泡控件 - 带阴影效果"""
 
+    # 默认最大宽度，会在创建时被ChatWindow更新
+    MAX_WIDTH = 300
+
     def __init__(self, text: str, is_user: bool = True, parent=None):
         super().__init__(parent)
         self.text = text
@@ -95,14 +98,14 @@ class BubbleWidget(QWidget):
 
     def _calculate_size(self):
         """计算气泡大小"""
-        font = QFont("Microsoft YaHei UI", 10)
+        font = QFont("Microsoft YaHei UI", 12)
         fm = QFontMetrics(font)
 
-        max_width = 300
+        max_width = self.MAX_WIDTH
         text_rect = fm.boundingRect(0, 0, max_width, 0, Qt.TextWordWrap, self.text)
 
         self._text_width = min(text_rect.width() + 36, max_width)
-        self._text_height = max(text_rect.height() + 28, 36)
+        self._text_height = max(text_rect.height() + 28, 44)
 
         self.setFixedHeight(self._text_height + Spacing.LG + 4)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -147,7 +150,7 @@ class BubbleWidget(QWidget):
 
         # 绘制文字
         painter.setPen(QColor(Theme.TEXT_ON_PRIMARY if self.is_user else Theme.TEXT_PRIMARY))
-        font = QFont("Microsoft YaHei UI", 10)
+        font = QFont("Microsoft YaHei UI", 12)
         painter.setFont(font)
 
         text_rect = path.boundingRect().adjusted(18, 14, -18, -14)
@@ -272,13 +275,31 @@ class ChatWorker(QThread):
             self.error.emit(str(e))
 
 
+class ProfileAnalyzeWorker(QThread):
+    """后台分析用户画像线程"""
+    finished = pyqtSignal(dict)
+
+    def __init__(self, persona_manager, messages, api_config):
+        super().__init__()
+        self.persona_manager = persona_manager
+        self.messages = messages
+        self.api_config = api_config
+
+    def run(self):
+        try:
+            profile = self.persona_manager.analyze_user_profile(self.messages, self.api_config)
+            self.finished.emit(profile)
+        except:
+            self.finished.emit({})
+
+
 class ChatWindow(QWidget):
     """聊天窗口 - 精致圆角气泡对话框设计"""
 
     SIZE_MAP = {
         "small": (520, 620),
         "medium": (660, 740),
-        "large": (1000, 880),
+        "large": (1200, 880),
     }
 
     settings_requested = pyqtSignal()
@@ -292,6 +313,9 @@ class ChatWindow(QWidget):
 
         size_key = config.get("ui", {}).get("chat_window_size", "medium")
         self.window_width, self.window_height = self.SIZE_MAP.get(size_key, (480, 600))
+
+        # 设置气泡最大宽度为窗口宽度的40%
+        BubbleWidget.MAX_WIDTH = int(self.window_width * 0.4)
 
         self.setWindowTitle(f"{persona_manager.name}")
         self.setFixedSize(self.window_width, self.window_height)
@@ -455,36 +479,41 @@ class ChatWindow(QWidget):
 
         # 输入框
         self.message_input = QLineEdit(input_bar)
-        self.message_input.setGeometry(Spacing.LG, 14, w - 180, 34)
+        self.message_input.setGeometry(Spacing.LG, 10, w - 180, 44)
         self.message_input.setPlaceholderText("输入消息...")
         self.message_input.setStyleSheet(f"""
             QLineEdit {{
-                background: {Theme.BG_INPUT};
-                border: none;
-                border-radius: 17px;
+                background: {Theme.BG_MAIN};
+                border: 1px solid {Theme.BORDER};
+                border-radius: 22px;
                 padding: 0 {Spacing.LG}px;
                 font-family: 'Microsoft YaHei UI', sans-serif;
-                font-size: 14px;
+                font-size: 16px;
                 color: {Theme.TEXT_PRIMARY};
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {Theme.PRIMARY};
+                padding: 0 15px;
             }}
             QLineEdit::placeholder {{
                 color: {Theme.TEXT_PLACEHOLDER};
+                font-size: 15px;
             }}
         """)
         self.message_input.returnPressed.connect(self._send_message)
 
         # 发送按钮
         self.send_btn = QPushButton("发送", input_bar)
-        self.send_btn.setGeometry(w - 80, 14, 64, 34)
+        self.send_btn.setGeometry(w - 80, 10, 64, 44)
         self.send_btn.setCursor(Qt.PointingHandCursor)
         self.send_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {Theme.PRIMARY};
                 color: {Theme.TEXT_ON_PRIMARY};
                 border: none;
-                border-radius: 17px;
+                border-radius: 22px;
                 font-family: 'Microsoft YaHei UI', sans-serif;
-                font-size: 14px;
+                font-size: 15px;
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -498,16 +527,16 @@ class ChatWindow(QWidget):
 
         # 清空对话按钮
         clear_btn = QPushButton("清空", input_bar)
-        clear_btn.setGeometry(w - 150, 14, 64, 34)
+        clear_btn.setGeometry(w - 150, 10, 64, 44)
         clear_btn.setCursor(Qt.PointingHandCursor)
         clear_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {Theme.BG_INPUT};
                 color: {Theme.TEXT_SECONDARY};
                 border: none;
-                border-radius: 17px;
+                border-radius: 22px;
                 font-family: 'Microsoft YaHei UI', sans-serif;
-                font-size: 13px;
+                font-size: 15px;
             }}
             QPushButton:hover {{
                 background-color: {Theme.ERROR_LIGHT};
@@ -528,6 +557,14 @@ class ChatWindow(QWidget):
 
     def _clear_chat(self):
         """清空对话"""
+        # 后台分析用户画像
+        messages = self.memory_manager.get_messages()
+        if len(messages) >= 4:
+            api_config = self.config.get("api", {})
+            self._analyze_worker = ProfileAnalyzeWorker(self.persona_manager, messages, api_config)
+            self._analyze_worker.finished.connect(self._on_analyze_done)
+            self._analyze_worker.start()
+
         self.memory_manager.clear()
         while self.message_layout.count() > 1:
             item = self.message_layout.takeAt(0)
@@ -535,6 +572,15 @@ class ChatWindow(QWidget):
                 item.widget().deleteLater()
         self._append_welcome()
         self._append_system_message("对话已清空")
+
+    def _on_analyze_done(self, profile: dict):
+        """分析完成"""
+        if profile:
+            for dim_key, value in profile.items():
+                if value:
+                    self.persona_manager.update_user_profile(dim_key, value)
+            from core.persona import DEFAULT_NAME
+            self._append_system_message(f"已更新用户画像~{DEFAULT_NAME}更了解你了！")
 
     def update_persona_name(self, new_name):
         """更新人设名称"""
