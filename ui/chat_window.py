@@ -276,9 +276,9 @@ class ChatWindow(QWidget):
     """聊天窗口 - 精致圆角气泡对话框设计"""
 
     SIZE_MAP = {
-        "small": (420, 500),
-        "medium": (520, 620),
-        "large": (660, 740),
+        "small": (520, 620),
+        "medium": (660, 740),
+        "large": (1000, 880),
     }
 
     settings_requested = pyqtSignal()
@@ -356,7 +356,7 @@ class ChatWindow(QWidget):
 
         # 设置按钮
         self.settings_btn = QPushButton("⚙", title_bar)
-        self.settings_btn.setGeometry(w - 150, 13, 36, 30)
+        self.settings_btn.setGeometry(w - 108, 13, 36, 30)
         self.settings_btn.setCursor(Qt.PointingHandCursor)
         self.settings_btn.setStyleSheet(f"""
             QPushButton {{
@@ -372,26 +372,6 @@ class ChatWindow(QWidget):
             }}
         """)
         self.settings_btn.clicked.connect(self.settings_requested.emit)
-
-        # 最小化按钮
-        min_btn = QPushButton("─", title_bar)
-        min_btn.setGeometry(w - 108, 13, 36, 30)
-        min_btn.setCursor(Qt.PointingHandCursor)
-        min_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {Theme.TEXT_SECONDARY};
-                border: none;
-                border-radius: {Radius.SM}px;
-                font-size: 13px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background: {Theme.BG_INPUT};
-                color: {Theme.TEXT_PRIMARY};
-            }}
-        """)
-        min_btn.clicked.connect(self.showMinimized)
 
         # 关闭按钮
         close_btn = QPushButton("✕", title_bar)
@@ -410,7 +390,7 @@ class ChatWindow(QWidget):
                 color: {Theme.TEXT_ON_PRIMARY};
             }}
         """)
-        close_btn.clicked.connect(self.close)
+        close_btn.clicked.connect(self.hide)
 
         # ═══════════════════════════════════════════════════════
         # 中间对话区域

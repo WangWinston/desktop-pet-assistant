@@ -14,8 +14,8 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.config = config
         self.setWindowTitle("设置")
-        self.setMinimumSize(440, 680)
-        self.resize(440, 720)
+        self.setMinimumSize(440, 500)
+        self.resize(440, 560)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         # 现代化样式
@@ -143,8 +143,13 @@ class SettingsDialog(QDialog):
         tabs = QTabWidget()
 
         # === 基础设置 ===
-        basic_tab = QWidget()
-        basic_layout = QVBoxLayout(basic_tab)
+        basic_scroll = QScrollArea()
+        basic_scroll.setWidgetResizable(True)
+        basic_scroll.setFrameShape(QScrollArea.NoFrame)
+        basic_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        basic_content = QWidget()
+        basic_layout = QVBoxLayout(basic_content)
         basic_layout.setSpacing(8)
 
         # API 配置标题
@@ -173,20 +178,27 @@ class SettingsDialog(QDialog):
         persona_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333; margin-top: 12px;")
         basic_layout.addWidget(persona_title)
 
-        self.name_input = QLineEdit()
-        self.name_input.setText(self.config.get("persona", {}).get("name", "皮卡丘"))
-        self.name_input.setPlaceholderText("宠物名字")
-        basic_layout.addWidget(self.name_input)
+        # 固定宠物名字显示
+        name_label = QLabel("宠物名字: 皮卡丘")
+        name_label.setStyleSheet("color: #666; font-size: 13px; padding: 8px 0;")
+        basic_layout.addWidget(name_label)
 
-        prompt_label = QLabel("人设提示词:")
-        prompt_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 4px;")
-        basic_layout.addWidget(prompt_label)
+        # 人设提示词前缀（固定不可编辑）
+        prompt_prefix_label = QLabel("人设: 你是一个电气老鼠宠物，你的主要职责是：")
+        prompt_prefix_label.setStyleSheet("color: #666; font-size: 12px; background: #F5F5F5; padding: 8px; border-radius: 4px; margin-top: 4px;")
+        prompt_prefix_label.setWordWrap(True)
+        basic_layout.addWidget(prompt_prefix_label)
 
-        self.prompt_input = QPlainTextEdit()
-        self.prompt_input.setPlainText(self.config.get("persona", {}).get("system_prompt", ""))
-        self.prompt_input.setMinimumHeight(60)
-        self.prompt_input.setPlaceholderText("设置宠物的人设和性格...")
-        basic_layout.addWidget(self.prompt_input)
+        # 主要职责输入框
+        duties_label = QLabel("主要职责:")
+        duties_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 4px;")
+        basic_layout.addWidget(duties_label)
+
+        self.duties_input = QPlainTextEdit()
+        self.duties_input.setPlainText(self.config.get("persona", {}).get("duties", ""))
+        self.duties_input.setMinimumHeight(60)
+        self.duties_input.setPlaceholderText("陪伴用户、提醒休息、聊天解闷...")
+        basic_layout.addWidget(self.duties_input)
 
         # 用户偏好
         prefs_header = QHBoxLayout()
@@ -248,11 +260,18 @@ class SettingsDialog(QDialog):
             self.prefs_list.setFixedHeight(max(36, 30 + item_count * 28))
         basic_layout.addWidget(self.prefs_list)
 
-        tabs.addTab(basic_tab, "基础")
+        basic_layout.addStretch()
+        basic_scroll.setWidget(basic_content)
+        tabs.addTab(basic_scroll, "基础")
 
         # === 状态配置 ===
-        state_tab = QWidget()
-        state_layout = QVBoxLayout(state_tab)
+        state_scroll = QScrollArea()
+        state_scroll.setWidgetResizable(True)
+        state_scroll.setFrameShape(QScrollArea.NoFrame)
+        state_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        state_content = QWidget()
+        state_layout = QVBoxLayout(state_content)
         state_layout.setSpacing(10)
 
         # 宠物尺寸
@@ -331,9 +350,9 @@ class SettingsDialog(QDialog):
         state_layout.addWidget(chat_size_title)
 
         chat_size_group = QButtonGroup(self)
-        self.chat_size_small = QRadioButton("小 (400px)")
-        self.chat_size_medium = QRadioButton("中 (480px)")
-        self.chat_size_large = QRadioButton("大 (560px)")
+        self.chat_size_small = QRadioButton("小 (520px)")
+        self.chat_size_medium = QRadioButton("中 (660px)")
+        self.chat_size_large = QRadioButton("大 (1000px)")
         chat_size_group.addButton(self.chat_size_small, 0)
         chat_size_group.addButton(self.chat_size_medium, 1)
         chat_size_group.addButton(self.chat_size_large, 2)
@@ -355,65 +374,9 @@ class SettingsDialog(QDialog):
         chat_size_layout.addStretch()
         state_layout.addLayout(chat_size_layout)
 
-        # 状态配置
-        state_title = QLabel("🎨 状态配置")
-        state_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333; margin-top: 8px;")
-        state_layout.addWidget(state_title)
-
-        state_layout.addWidget(QLabel("选择状态:"))
-        self.state_combo = QComboBox()
-        self.state_combo.addItems(["idle (待机)", "click (点击)", "drag (拖拽)", "rest (休息)"])
-        self.state_combo.currentIndexChanged.connect(self._load_state_config)
-        state_layout.addWidget(self.state_combo)
-
-        state_layout.addWidget(QLabel("动画文件:"))
-        anim_layout = QHBoxLayout()
-        self.anim_input = QLineEdit()
-        self.anim_input.setPlaceholderText("GIF 文件路径 (留空使用默认)")
-        anim_layout.addWidget(self.anim_input)
-        browse_btn = QPushButton("浏览")
-        browse_btn.setFixedWidth(60)
-        browse_btn.setCursor(Qt.PointingHandCursor)
-        browse_btn.setStyleSheet("""
-            QPushButton {
-                background: #F5F5F5;
-                color: #666;
-                border: 1px solid #E0E0E0;
-                border-radius: 6px;
-                font-size: 12px;
-            }
-            QPushButton:hover { background: #EBEBEB; }
-        """)
-        browse_btn.clicked.connect(self._browse_animation)
-        anim_layout.addWidget(browse_btn)
-        state_layout.addLayout(anim_layout)
-
-        state_layout.addWidget(QLabel("对话文本:"))
-        self.state_dialog_input = QLineEdit()
-        self.state_dialog_input.setPlaceholderText("该状态显示的对话")
-        state_layout.addWidget(self.state_dialog_input)
-
-        save_state_btn = QPushButton("💾 保存当前状态")
-        save_state_btn.setFixedHeight(36)
-        save_state_btn.setCursor(Qt.PointingHandCursor)
-        save_state_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #E3F2FD, stop:1 #BBDEFB);
-                color: #1976D2;
-                border: none;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: 500;
-            }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #BBDEFB, stop:1 #90CAF9); }
-        """)
-        save_state_btn.clicked.connect(self._save_state_config)
-        state_layout.addWidget(save_state_btn)
-
         state_layout.addStretch()
-        self._load_state_config(0)
-
-        tabs.addTab(state_tab, "状态")
+        state_scroll.setWidget(state_content)
+        tabs.addTab(state_scroll, "状态")
         layout.addWidget(tabs)
 
         # 底部按钮
@@ -478,50 +441,6 @@ class SettingsDialog(QDialog):
             else:
                 self.prefs_list.setFixedHeight(36)
 
-    def _load_state_config(self, index):
-        states = ["idle", "click", "drag", "rest"]
-        state_name = states[index]
-        state_config = self.config.get("states", {}).get(state_name, {})
-
-        anim = state_config.get("animation", "")
-        if state_name == "idle":
-            anims = state_config.get("animations", [])
-            anim = "; ".join(anims) if anims else ""
-        self.anim_input.setText(anim)
-
-        dialog = state_config.get("dialog", "")
-        if state_name == "idle":
-            dialogs = state_config.get("dialogs", [])
-            dialog = "; ".join(dialogs) if dialogs else ""
-        self.state_dialog_input.setText(dialog)
-
-    def _browse_animation(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择动画", "", "GIF Files (*.gif)")
-        if file_path:
-            self.anim_input.setText(file_path)
-
-    def _save_state_config(self):
-        states = ["idle", "click", "drag", "rest"]
-        state_name = states[self.state_combo.currentIndex()]
-
-        if "states" not in self.config:
-            self.config["states"] = {}
-
-        state_config = {}
-        if state_name == "idle":
-            anims = [a.strip() for a in self.anim_input.text().split(";") if a.strip()]
-            dialogs = [d.strip() for d in self.state_dialog_input.text().split(";") if d.strip()]
-            if anims: state_config["animations"] = anims
-            if dialogs: state_config["dialogs"] = dialogs
-        else:
-            if self.anim_input.text().strip():
-                state_config["animation"] = self.anim_input.text().strip()
-            if self.state_dialog_input.text().strip():
-                state_config["dialog"] = self.state_dialog_input.text().strip()
-
-        self.config["states"][state_name] = state_config
-        QMessageBox.information(self, "提示", f"{state_name} 已保存")
-
     def _on_size_preset(self, size):
         """预设按钮点击"""
         self.pet_size_input.setValue(size)
@@ -566,8 +485,8 @@ class SettingsDialog(QDialog):
         self.config["api"]["model"] = self.model_input.text().strip()
 
         self.config.setdefault("persona", {})
-        self.config["persona"]["name"] = self.name_input.text().strip()
-        self.config["persona"]["system_prompt"] = self.prompt_input.toPlainText()
+        self.config["persona"]["name"] = "皮卡丘"  # 固定名字
+        self.config["persona"]["duties"] = self.duties_input.toPlainText()
         self.config["persona"]["user_preferences"] = [self.prefs_list.item(i).text() for i in range(self.prefs_list.count())]
 
         self.config.setdefault("ui", {})

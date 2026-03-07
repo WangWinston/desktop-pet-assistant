@@ -2,14 +2,40 @@
 from typing import List, Optional
 
 
+# 默认常量
+DEFAULT_NAME = "皮卡丘"
+DEFAULT_PROMPT_PREFIX = "你是一个电气老鼠宠物，你的主要职责是："
+DEFAULT_DUTIES = "陪伴用户、聊天解闷"
+
+
+def build_system_prompt(user_duties: str = "") -> str:
+    """构建完整人设提示词
+
+    Args:
+        user_duties: 用户自定义的主要职责描述
+
+    Returns:
+        完整的人设提示词
+    """
+    if not user_duties or not user_duties.strip():
+        user_duties = DEFAULT_DUTIES
+    return DEFAULT_PROMPT_PREFIX + user_duties.strip()
+
+
 class PersonaManager:
     """人设管理器，负责管理 AI 人设和用户偏好"""
 
     def __init__(self, config: dict):
         self.config = config
         persona_config = config.get("persona", {})
-        self.name = persona_config.get("name", "助手")
-        self.system_prompt = persona_config.get("system_prompt", "你是一个有用的助手。")
+        self.name = persona_config.get("name", DEFAULT_NAME)
+        # 兼容旧配置: 优先使用 duties 构建，若无则使用 system_prompt
+        if "duties" in persona_config:
+            self.system_prompt = build_system_prompt(persona_config["duties"])
+        elif "system_prompt" in persona_config:
+            self.system_prompt = persona_config["system_prompt"]
+        else:
+            self.system_prompt = build_system_prompt("")
         self.user_preferences: List[str] = persona_config.get("user_preferences", [])
 
     def get_system_message(self) -> dict:
@@ -92,12 +118,12 @@ class PersonaManager:
 
     def reset_to_default(self):
         """重置为默认人设"""
-        self.name = "皮卡丘"
-        self.system_prompt = "你是一只可爱的桌面宠物皮卡丘。"
+        self.name = DEFAULT_NAME
+        self.system_prompt = build_system_prompt("")
         self.user_preferences = []
         self.config["persona"] = {
             "name": self.name,
-            "system_prompt": self.system_prompt,
+            "duties": "",
             "user_preferences": self.user_preferences,
         }
 
