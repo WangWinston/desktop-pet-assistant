@@ -952,72 +952,85 @@ class ChatWindow(QWidget):
             QTimer.singleShot(10, self._scroll_to_bottom)
 
     def _handle_todo_command(self, text: str):
-        """处理 /todo 命令创建待办"""
+        """处理 /todo 命令创建待办 - 通过 Agent 的 write_file 工具写入配置"""
         import re
+        import traceback
         from utils.config_loader import ConfigLoader
         
-        # 解析格式: 支持 "内容 @ 时间" 或 "内容@时间" 或 "内容 时间"
-        # 尝试多种格式
-        match = re.match(r'^(.+?)\s*@\s*(\d{1,2}:\d{2})$', text)
-        
-        if match:
-            content = match.group(1).strip()
-            time = match.group(2).strip()
-        else:
-            # 尝试查找末尾的时间（空格分隔）
-            match2 = re.match(r'^(.+?)\s+(\d{1,2}:\d{2})$', text)
-            if match2:
-                content = match2.group(1).strip()
-                time = match2.group(2).strip()
+        try:
+            # 解析格式: 支持 "内容 @ 时间" 或 "内容@时间" 或 "内容 时间"
+            match = re.match(r'^(.+?)\s*@\s*(\d{1,2}:\d{2})$', text)
+            
+            if match:
+                content = match.group(1).strip()
+                time = match.group(2).strip()
             else:
-                content = text.strip()
-                # 默认时间设为当前时间的下一个整点
-                from datetime import datetime, timedelta
-                current = datetime.now()
-                next_hour = (current + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-                time = next_hour.strftime("%H:%M")
-        
-        if not content:
-            self._append_assistant_message("❌ 请输入待办内容\n格式：/todo 开会@10:00 或 /todo 开会 @ 10:00")
-            return
-        
-        # 加载配置并添加待办
-        config = ConfigLoader.load()
-        config.setdefault("todo_reminder", {})
-        config["todo_reminder"].setdefault("todos", [])
-        
-        # 检查是否已存在
-        for todo in config["todo_reminder"]["todos"]:
-            if todo.get("content") == content and todo.get("time") == time:
-                self._append_assistant_message(f"⚠️ 待办已存在: {content} @ {time}")
+                # 尝试查找末尾的时间（空格分隔）
+                match2 = re.match(r'^(.+?)\s+(\d{1,2}:\d{2})$', text)
+                if match2:
+                    content = match2.group(1).strip()
+                    time = match2.group(2).strip()
+                else:
+                    content = text.strip()
+                    # 默认时间设为当前时间的下一个整点
+                    from datetime import datetime, timedelta
+                    current = datetime.now()
+                    next_hour = (current + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+                    time = next_hour.strftime("%H:%M")
+            
+            if not content:
+                self._append_assistant_message("❌ 请输入待办内容\n格式：/todo 开会@10:00 或 /todo 开会 @ 10:00")
                 return
-        
-        # 添加待办
-        config["todo_reminder"]["todos"].append({
-            "content": content,
-            "time": time,
-            "done": False
-        })
-        
-        # 保存配置
-        ConfigLoader.save(config)
-        
-        # 刷新当前窗口的配置（通知宠物更新）
-        if hasattr(self, '_pet') and self._pet:
-            self._pet._todo_config = config.get("todo_reminder", {})
-            # 如果宠物有打开的设置窗口，也刷新它
-            if hasattr(self._pet, '_settings_dialog') and self._pet._settings_dialog:
-                settings = self._pet._settings_dialog
-                if hasattr(settings, 'todo_list'):
-                    settings.todo_list.clear()
-                    for todo in config.get("todo_reminder", {}).get("todos", []):
-                        content = todo.get("content", "")
-                        time = todo.get("time", "")
-                        done = todo.get("done", False)
-                        item_text = f"[{'✓' if done else '○'}] {content} @ {time}"
-                        settings.todo_list.addItem(item_text)
-        
-        self._append_assistant_message(f"✅ 待办已添加: {content} @ {time}\n将在 {time} 提醒你")
+            
+            # 加载现有配置
+            config = ConfigLoader.load()
+            config.setdefault("todo_reminder", {})
+            config["todo_reminder"].setdefault("enabled", True)
+            config["todo_reminder"].setdefault("todos", [])
+            
+            # 检查是否已存在
+            for todo in config["todo_reminder"].get("todos", []):
+                if todo.get("content") == content and todo.get("time") == time:
+                    self._append_assistant_message(f"⚠️ 待办已存在: {content} @ {time}")
+                    return
+            
+            # 添加待办
+            config["todo_reminder"]["todos"].append({
+                "content": content,
+                "time": time,
+                "done": False
+            })
+            
+            # 生成 YAML 格式的配置内容
+            import yaml
+            import os
+            
+            # 读取现有配置文件，保留其他配置
+            config_path = os.path.abspath("config.yaml")
+            
+            # 将更新后的配置写入文件
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+            
+            # 刷新当前窗口的配置（通知宠物更新）
+            if hasattr(self, '_pet') and self._pet:
+                self._pet._todo_config = config.get("todo_reminder", {})
+                # 如果宠物有打开的设置窗口，也刷新它
+                if hasattr(self._pet, '_settings_dialog') and self._pet._settings_dialog:
+                    settings = self._pet._settings_dialog
+                    if hasattr(settings, 'todo_list'):
+                        settings.todo_list.clear()
+                        for todo in config.get("todo_reminder", {}).get("todos", []):
+                            t_content = todo.get("content", "")
+                            t_time = todo.get("time", "")
+                            done = todo.get("done", False)
+                            item_text = f"[{'✓' if done else '○'}] {t_content} @ {t_time}"
+                            settings.todo_list.addItem(item_text)
+            
+            self._append_assistant_message(f"✅ 待办已添加: {content} @ {time}\n将在 {time} 提醒你")
+        except Exception as e:
+            error_msg = f"❌ 添加失败: {str(e)}\n{traceback.format_exc()}"
+            self._append_assistant_message(error_msg)
 
     def _append_assistant_message(self, text, scroll=True):
         """添加 AI 消息"""
