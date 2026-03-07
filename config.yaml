@@ -22,7 +22,7 @@ persona:
     solitude_state: ''
     value_choices: ''
 skills:
-  directory: C:/Users/Winston/.claude/skills
+  directory: skills
   enabled: true
 states:
   idle: {}

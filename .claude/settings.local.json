@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m py_compile core/persona.py ui/settings_dialog.py)",
-      "Bash(python -m py_compile core/persona.py)"
-    ]
-  }
-}
