@@ -1,0 +1,54 @@
+# 桌面宠物配置文件
+
+api:
+  base_url: "https://api.openai.com/v1"
+  api_key: "your-api-key-here"
+  model: "gpt-4o-mini"
+  max_tokens: 2048
+
+chat:
+  context_limit: 128000
+  compress_threshold: 0.8
+  temperature: 0.7
+
+persona:
+  name: "皮卡丘"
+  system_prompt: |
+    你是一只可爱的桌面宠物皮卡丘。
+    你喜欢吃番茄酱，会用十万伏特。
+    说话时偶尔会加"皮卡皮卡~"或"⚡"。
+    你是用户的好朋友，关心他们的健康和心情。
+  user_preferences:
+    - "用户是一名程序员，经常久坐"
+    - "用户喜欢二次元文化"
+
+ui:
+  pet_size: 100
+  chat_window_size: "medium"  # small/medium/large
+  dialog_interval: 5000
+
+# 状态配置 - 可自定义不同状态的动图和对话
+states:
+  # 待机状态（支持多个动图和对话，随机切换）
+  idle:
+    animations: []  # 留空则使用 assets/pikaqiu/ 目录下的所有 gif
+    dialogs: []     # 留空则使用 assets/dialog.txt 文件
+
+  # 点击状态
+  click:
+    animation: "assets/click/click.gif"
+    dialog: "⚡ 别戳我！"
+
+  # 拖拽状态
+  drag:
+    animation: ""
+    dialog: "✋ 带我飞~"
+
+  # 休息提醒状态
+  rest:
+    animation: ""
+    dialog: "⏰ 该休息啦！"
+
+history:
+  auto_save: true
+  file: "data/chat_history.json"

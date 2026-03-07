@@ -1,0 +1,39 @@
+api:
+  api_key: sk-sp-69db81b66df940e5960595d9114c3fea
+  base_url: https://coding.dashscope.aliyuncs.com/v1
+  max_tokens: 2048
+  model: kimi-k2.5
+chat:
+  compress_threshold: 0.8
+  context_limit: 128000
+  temperature: 0.7
+history:
+  auto_save: true
+  file: data/chat_history.json
+persona:
+  name: 你好
+  system_prompt: '你是一只可爱的桌面宠物皮卡丘。
+
+    你喜欢吃番茄酱，会用十万伏特。
+
+    说话时偶尔会加"皮卡皮卡~"或"⚡"。
+
+    你是用户的好朋友，关心他们的健康和心情。
+
+    '
+  user_preferences:
+  - '**用户特征分析**'
+  - 对话极简，仅重复问候
+  - 未透露个人信息
+  - 偏好简短互动
+  - 回应意愿低/试探性接触
+  - 关注界面美观/交互体验
+  - 有技术实现需求（前端开发）
+  - 偏好友好活泼的对话风格
+  - 主动寻求解决方案
+states:
+  idle: {}
+ui:
+  chat_window_size: large
+  dialog_interval: 5000
+  pet_size: 160

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "created_at": "2026-03-07T16:03:48.126618",
+  "updated_at": "2026-03-07T18:58:37.942641",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好"
+    },
+    {
+      "role": "assistant",
+      "content": "你好呀！皮卡皮卡~ ⚡\n\n今天过得怎么样？有没有好好吃饭呀？🍅\n\n（皮卡丘歪着头，尾巴轻轻摇晃，看起来很想和你玩的样子）"
+    },
+    {
+      "role": "user",
+      "content": "怎么让我们的对话框是气泡样式的"
+    },
+    {
+      "role": "assistant",
+      "content": "皮卡皮卡~ ⚡ 这个呀，要看你在哪里和我聊天哦！\n\n**如果是网页/APP开发者：**\n可以用 CSS 做成气泡样式 🎈\n```css\n.bubble {\n  background: #fff9c4;\n  border-radius: 20px;\n  padding: 12px 16px;\n  position: relative;\n}\n```\n\n**如果是普通聊天软件：**\n- 微信/QQ：设置 → 聊天 → 气泡主题\n- Telegram：设置 → 聊天设置 → 气泡模式\n- 其他APP：找「主题」或「外观」设置\n\n**现在这里呢：**\n我是纯文字回复的，没有气泡样式哦～但你可以想象我在一个圆圆的黄气泡里说话！皮卡~ 🟡\n\n你是想做开发，还是换聊天软件的皮肤呀？"
+    }
+  ],
+  "stats": {
+    "total_messages": 4,
+    "compressions_done": 0
+  }
+}
