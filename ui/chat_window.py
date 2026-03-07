@@ -14,6 +14,9 @@ from PyQt5.QtWidgets import (
     QWidget,
     QSizePolicy,
     QGraphicsDropShadowEffect,
+    QTextBrowser,
+    QListWidget,
+    QListWidgetItem,
 )
 
 if TYPE_CHECKING:
@@ -84,7 +87,7 @@ class Radius:
 
 
 class BubbleWidget(QWidget):
-    """圆角气泡控件 - 带阴影效果"""
+    """圆角气泡控件 - 支持Markdown渲染"""
 
     # 默认最大宽度，会在创建时被ChatWindow更新
     MAX_WIDTH = 300
@@ -93,68 +96,140 @@ class BubbleWidget(QWidget):
         super().__init__(parent)
         self.text = text
         self.is_user = is_user
-        self._hover = False
-        self._calculate_size()
+        self._bg_color = Theme.BUBBLE_USER if is_user else Theme.BUBBLE_AI
+        self._text_color = Theme.TEXT_ON_PRIMARY if is_user else Theme.TEXT_PRIMARY
+        self._setup_ui()
 
-    def _calculate_size(self):
-        """计算气泡大小"""
-        font = QFont("Microsoft YaHei UI", 12)
-        fm = QFontMetrics(font)
+    def _setup_ui(self):
+        """设置UI"""
+        # 设置属性支持圆角
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
 
-        max_width = self.MAX_WIDTH
-        text_rect = fm.boundingRect(0, 0, max_width, 0, Qt.TextWordWrap, self.text)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(0)
 
-        self._text_width = min(text_rect.width() + 36, max_width)
-        self._text_height = max(text_rect.height() + 28, 44)
+        # 使用QTextBrowser支持Markdown
+        self.text_browser = QTextBrowser()
+        self.text_browser.setOpenExternalLinks(True)
+        self.text_browser.setFrameShape(QTextBrowser.NoFrame)
+        self.text_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.text_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.text_browser.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.text_browser.setOpenLinks(False)
 
-        self.setFixedHeight(self._text_height + Spacing.LG + 4)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.text_browser.setStyleSheet(
+            f"""
+            QTextBrowser {{
+                background-color: transparent;
+                color: {self._text_color};
+                border: none;
+                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-size: 16px;
+                line-height: 1.6;
+            }}
+            /* 段落与标题 */
+            p {{
+                margin: 4px 0;
+            }}
+            h1, h2, h3 {{
+                font-weight: 600;
+                margin: 6px 0 4px 0;
+            }}
+            h1 {{
+                font-size: 20px;
+            }}
+            h2 {{
+                font-size: 18px;
+            }}
+            h3 {{
+                font-size: 17px;
+            }}
+            /* Markdown 代码块样式 */
+            pre {{
+                background-color: {'#4A7FE0' if self.is_user else '#F0F0F0'};
+                color: {self._text_color};
+                padding: 8px;
+                border-radius: 6px;
+                margin: 6px 0;
+            }}
+            code {{
+                background-color: {'#4A7FE0' if self.is_user else '#E8E8E8'};
+                padding: 2px 6px;
+                border-radius: 4px;
+            }}
+            /* 列表样式 */
+            ul, ol {{
+                margin-left: 20px;
+                padding-left: 4px;
+            }}
+            li {{
+                margin: 2px 0;
+            }}
+            /* 强调与引用 */
+            strong {{
+                font-weight: 600;
+            }}
+            em {{
+                font-style: italic;
+            }}
+            blockquote {{
+                border-left: 3px solid {Theme.BORDER};
+                padding-left: 8px;
+                margin: 6px 0;
+                color: {Theme.TEXT_SECONDARY};
+            }}
+        """
+        )
+
+        # 设置Markdown内容
+        self._update_text()
+        layout.addWidget(self.text_browser)
 
     def paintEvent(self, event):
-        """绘制圆角气泡"""
+        """绘制圆角背景"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.TextAntialiasing)
 
-        bubble_width = self._text_width
-        bubble_height = self._text_height
-
-        if self.is_user:
-            x = self.width() - bubble_width - Spacing.XL
-        else:
-            x = Spacing.XL
-
-        y = Spacing.SM
-        radius = Radius.LG
-
-        # 绘制阴影（仅 AI 气泡）
+        # AI气泡绘制阴影
         if not self.is_user:
             shadow_path = QPainterPath()
-            shadow_path.addRoundedRect(
-                float(x + 1), float(y + 2),
-                float(bubble_width), float(bubble_height),
-                float(radius), float(radius)
-            )
-            painter.fillPath(shadow_path, Theme.SHADOW_LIGHT)
+            shadow_path.addRoundedRect(1, 2, self.width() - 1, self.height() - 1, float(Radius.LG), float(Radius.LG))
+            painter.fillPath(shadow_path, QColor(0, 0, 0, 15))
 
-        # 绘制气泡主体
+        # 绘制圆角矩形背景
         path = QPainterPath()
-        path.addRoundedRect(float(x), float(y), float(bubble_width), float(bubble_height), float(radius), float(radius))
+        path.addRoundedRect(0, 0, self.width(), self.height(), float(Radius.LG), float(Radius.LG))
+        painter.fillPath(path, QColor(self._bg_color))
 
-        if self.is_user:
-            painter.fillPath(path, QColor(Theme.BUBBLE_USER))
-        else:
-            painter.fillPath(path, QColor(Theme.BUBBLE_AI))
+        # AI气泡添加边框
+        if not self.is_user:
             painter.setPen(QPen(QColor(Theme.BORDER), 1))
             painter.drawPath(path)
 
-        # 绘制文字
-        painter.setPen(QColor(Theme.TEXT_ON_PRIMARY if self.is_user else Theme.TEXT_PRIMARY))
-        font = QFont("Microsoft YaHei UI", 12)
-        painter.setFont(font)
+    def _update_text(self):
+        """更新文本内容"""
+        if self.is_user:
+            self.text_browser.setPlainText(self.text)
+        else:
+            self.text_browser.setMarkdown(self.text)
 
-        text_rect = path.boundingRect().adjusted(18, 14, -18, -14)
-        painter.drawText(text_rect, Qt.TextWordWrap, self.text)
+        # 计算高度
+        doc = self.text_browser.document()
+        doc.setTextWidth(self.MAX_WIDTH - 28)
+        height = doc.size().height()
+        self.text_browser.setFixedHeight(int(max(height, 24)))
+        self.setFixedHeight(int(height + 20))
+
+    def set_text(self, text: str):
+        """设置文本"""
+        self.text = text
+        self._update_text()
+
+    def append_text(self, chunk: str):
+        """追加文本（流式输出）"""
+        self.text += chunk
+        self._update_text()
 
 
 class WelcomeWidget(QWidget):
@@ -312,22 +387,148 @@ class ChatWindow(QWidget):
         self.persona_manager = persona_manager
 
         size_key = config.get("ui", {}).get("chat_window_size", "medium")
-        self.window_width, self.window_height = self.SIZE_MAP.get(size_key, (480, 600))
+        self.window_width, self.window_height = self.SIZE_MAP.get(
+            size_key, self.SIZE_MAP["medium"]
+        )
 
-        # 设置气泡最大宽度为窗口宽度的40%
-        BubbleWidget.MAX_WIDTH = int(self.window_width * 0.4)
+        # 不同窗口尺寸下的气泡宽度占比，尽量减少多余留白
+        bubble_width_ratio_map = {
+            "small": 0.8,
+            "medium": 0.7,
+            "large": 0.6,
+        }
+        bubble_ratio = bubble_width_ratio_map.get(size_key, 0.7)
+        BubbleWidget.MAX_WIDTH = int(self.window_width * bubble_ratio)
 
         self.setWindowTitle(f"{persona_manager.name}")
         self.setFixedSize(self.window_width, self.window_height)
+        # 使用无边框置顶窗口，但不再启用整窗透明，以提升性能和稳定性
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         self._drag_pos = None
         self._worker = None
         self._pet_name = persona_manager.name
         self._streaming_bubble = None
+        self._streaming_container = None
+        self._skills_popup = None
 
         self._init_ui()
+
+    # ═══════════════════════════════════════════════════════
+    # 斜杠技能选择相关
+    # ═══════════════════════════════════════════════════════
+
+    def _ensure_skills_popup(self):
+        """延迟创建技能列表弹窗"""
+        if self._skills_popup is not None:
+            return
+
+        self._skills_popup = QListWidget(self.container)
+        self._skills_popup.setVerticalScrollMode(QListWidget.ScrollPerPixel)
+        self._skills_popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._skills_popup.setFocusPolicy(Qt.NoFocus)
+        self._skills_popup.setStyleSheet(
+            f"""
+            QListWidget {{
+                background: {Theme.BG_MAIN};
+                border: 1px solid {Theme.BORDER};
+                border-radius: {Radius.MD}px;
+                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-size: 13px;
+                color: {Theme.TEXT_PRIMARY};
+            }}
+            QListWidget::item {{
+                padding: 6px 10px;
+            }}
+            QListWidget::item:selected {{
+                background: {Theme.PRIMARY_LIGHT};
+                color: {Theme.PRIMARY};
+            }}
+        """
+        )
+        self._skills_popup.hide()
+        self._skills_popup.itemClicked.connect(self._on_skill_item_activated)
+        self._skills_popup.itemActivated.connect(self._on_skill_item_activated)
+
+    def _hide_skills_popup(self):
+        if self._skills_popup is not None:
+            self._skills_popup.hide()
+
+    def _on_input_changed(self, text: str):
+        """输入内容变化时，根据 / 前缀显示技能列表"""
+        if not text.startswith("/"):
+            self._hide_skills_popup()
+            return
+
+        # 优先使用 PersonaManager 已加载的技能
+        skills = self.persona_manager.get_skills()
+        # 兜底：如果还没有加载到技能，则直接从配置的 skills 目录重新加载一次
+        if not skills:
+            try:
+                from core.persona import load_skills
+
+                skills_dir = self.config.get("skills", {}).get("directory", "skills")
+                skills = load_skills(skills_dir)
+            except Exception:
+                skills = {}
+
+        if not skills:
+            self._hide_skills_popup()
+            return
+
+        query = text[1:].strip().lower()
+
+        # 筛选技能
+        matched_items = []
+        for skill_key, skill_info in skills.items():
+            display_name = skill_info.get("name") or skill_key
+            desc = skill_info.get("description", "")
+            label = f"{display_name} - {desc}" if desc else display_name
+
+            if query:
+                haystack = f"{display_name} {desc}".lower()
+                if query not in haystack:
+                    continue
+
+            matched_items.append((display_name, label))
+
+        if not matched_items:
+            self._hide_skills_popup()
+            return
+
+        self._ensure_skills_popup()
+        self._skills_popup.clear()
+
+        for display_name, label in matched_items:
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, display_name)
+            self._skills_popup.addItem(item)
+
+        # 计算弹窗位置：对齐输入框上方
+        bar_geo = self.input_bar.geometry()
+        input_geo = self.message_input.geometry()
+
+        popup_width = input_geo.width()
+        popup_height = min(180, 30 + 26 * len(matched_items))
+
+        x = bar_geo.x() + input_geo.x()
+        y = bar_geo.y() - popup_height - 6
+        if y < 0:
+            y = 0
+
+        self._skills_popup.setGeometry(x, y, popup_width, popup_height)
+        self._skills_popup.show()
+        self._skills_popup.raise_()
+
+    def _on_skill_item_activated(self, item: QListWidgetItem):
+        """选择某个技能后，将其填充到输入框中"""
+        if not item:
+            return
+        skill_name = item.data(Qt.UserRole) or item.text()
+        self.message_input.setText(f"/{skill_name} ")
+        self.message_input.setFocus()
+        self.message_input.setCursorPosition(len(self.message_input.text()))
+        self._hide_skills_popup()
 
     def _init_ui(self):
         """初始化 UI"""
@@ -349,7 +550,8 @@ class ChatWindow(QWidget):
         shadow.setBlurRadius(20)
         shadow.setColor(QColor(0, 0, 0, 30))
         shadow.setOffset(0, 4)
-        self.container.setGraphicsEffect(shadow)
+        # 关闭窗口阴影以减少重绘压力
+        # self.container.setGraphicsEffect(shadow)
 
         # ═══════════════════════════════════════════════════════
         # 顶部标题栏
@@ -420,7 +622,9 @@ class ChatWindow(QWidget):
         # 中间对话区域
         # ═══════════════════════════════════════════════════════
         self.scroll_area = QScrollArea(self.container)
-        self.scroll_area.setGeometry(0, 56, w, h - 118)
+        header_height = 56
+        input_height = 72
+        self.scroll_area.setGeometry(0, header_height, w, h - header_height - input_height)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -466,9 +670,9 @@ class ChatWindow(QWidget):
         # ═══════════════════════════════════════════════════════
         # 底部输入栏
         # ═══════════════════════════════════════════════════════
-        input_bar = QWidget(self.container)
-        input_bar.setGeometry(0, h - 62, w, 62)
-        input_bar.setStyleSheet(f"""
+        self.input_bar = QWidget(self.container)
+        self.input_bar.setGeometry(0, h - input_height, w, input_height)
+        self.input_bar.setStyleSheet(f"""
             QWidget {{
                 background: {Theme.BG_MAIN};
                 border-top: 1px solid {Theme.DIVIDER};
@@ -478,17 +682,17 @@ class ChatWindow(QWidget):
         """)
 
         # 输入框
-        self.message_input = QLineEdit(input_bar)
-        self.message_input.setGeometry(Spacing.LG, 10, w - 180, 44)
+        self.message_input = QLineEdit(self.input_bar)
+        self.message_input.setGeometry(Spacing.LG, 12, w - 210, 48)
         self.message_input.setPlaceholderText("输入消息...")
         self.message_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {Theme.BG_MAIN};
                 border: 1px solid {Theme.BORDER};
-                border-radius: 22px;
+                border-radius: 24px;
                 padding: 0 {Spacing.LG}px;
                 font-family: 'Microsoft YaHei UI', sans-serif;
-                font-size: 16px;
+                font-size: 17px;
                 color: {Theme.TEXT_PRIMARY};
             }}
             QLineEdit:focus {{
@@ -497,23 +701,23 @@ class ChatWindow(QWidget):
             }}
             QLineEdit::placeholder {{
                 color: {Theme.TEXT_PLACEHOLDER};
-                font-size: 15px;
+                font-size: 16px;
             }}
         """)
         self.message_input.returnPressed.connect(self._send_message)
 
         # 发送按钮
-        self.send_btn = QPushButton("发送", input_bar)
-        self.send_btn.setGeometry(w - 80, 10, 64, 44)
+        self.send_btn = QPushButton("发送", self.input_bar)
+        self.send_btn.setGeometry(w - 92, 12, 80, 48)
         self.send_btn.setCursor(Qt.PointingHandCursor)
         self.send_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {Theme.PRIMARY};
                 color: {Theme.TEXT_ON_PRIMARY};
                 border: none;
-                border-radius: 22px;
+                border-radius: 24px;
                 font-family: 'Microsoft YaHei UI', sans-serif;
-                font-size: 15px;
+                font-size: 16px;
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -526,17 +730,17 @@ class ChatWindow(QWidget):
         self.send_btn.clicked.connect(self._send_message)
 
         # 清空对话按钮
-        clear_btn = QPushButton("清空", input_bar)
-        clear_btn.setGeometry(w - 150, 10, 64, 44)
+        clear_btn = QPushButton("清空", self.input_bar)
+        clear_btn.setGeometry(w - 186, 12, 80, 48)
         clear_btn.setCursor(Qt.PointingHandCursor)
         clear_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {Theme.BG_INPUT};
                 color: {Theme.TEXT_SECONDARY};
                 border: none;
-                border-radius: 22px;
+                border-radius: 24px;
                 font-family: 'Microsoft YaHei UI', sans-serif;
-                font-size: 15px;
+                font-size: 16px;
             }}
             QPushButton:hover {{
                 background-color: {Theme.ERROR_LIGHT};
@@ -545,9 +749,12 @@ class ChatWindow(QWidget):
         """)
         clear_btn.clicked.connect(self._clear_chat)
 
+        # 输入变更时处理斜杠技能选择
+        self.message_input.textChanged.connect(self._on_input_changed)
+
         # 状态提示
         self.status_label = QLabel("", self.container)
-        self.status_label.setGeometry(Spacing.LG, h - 84, w - Spacing.XXL, 20)
+        self.status_label.setGeometry(Spacing.LG, h - input_height - 22, w - Spacing.XXL, 20)
         self.status_label.setStyleSheet(f"""
             color: {Theme.TEXT_SECONDARY};
             font-family: 'Microsoft YaHei UI', sans-serif;
@@ -611,6 +818,9 @@ class ChatWindow(QWidget):
 
     def _send_message(self):
         """发送消息"""
+        # 若技能选择弹窗还在，则先隐藏
+        self._hide_skills_popup()
+
         text = self.message_input.text().strip()
         if not text or self._worker:
             return
@@ -639,19 +849,22 @@ class ChatWindow(QWidget):
         """流式接收"""
         if self._streaming_bubble is None:
             self._streaming_bubble = BubbleWidget("", is_user=False)
-            self.message_layout.insertWidget(self.message_layout.count() - 1, self._streaming_bubble)
+            self._streaming_bubble.setMaximumWidth(BubbleWidget.MAX_WIDTH + 24)
+            # 左对齐容器
+            self._streaming_container = QWidget()
+            layout = QHBoxLayout(self._streaming_container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.addWidget(self._streaming_bubble)
+            layout.addStretch()
+            self.message_layout.insertWidget(self.message_layout.count() - 1, self._streaming_container)
 
-        self._streaming_bubble.text += chunk
-        self._streaming_bubble._calculate_size()
-        self._streaming_bubble.update()
+        self._streaming_bubble.append_text(chunk)
         self._scroll_to_bottom()
 
     def _on_response(self, response):
         """响应完成"""
         if self._streaming_bubble:
-            self._streaming_bubble.text = response
-            self._streaming_bubble._calculate_size()
-            self._streaming_bubble.update()
+            self._streaming_bubble.set_text(response)
 
         self.memory_manager.add_message("assistant", response)
         self._finish_request()
@@ -674,14 +887,28 @@ class ChatWindow(QWidget):
     def _append_user_message(self, text, scroll=True):
         """添加用户消息"""
         bubble = BubbleWidget(text, is_user=True)
-        self.message_layout.insertWidget(self.message_layout.count() - 1, bubble)
+        bubble.setMaximumWidth(BubbleWidget.MAX_WIDTH + 24)
+        # 右对齐
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addStretch()
+        layout.addWidget(bubble)
+        self.message_layout.insertWidget(self.message_layout.count() - 1, container)
         if scroll:
             QTimer.singleShot(10, self._scroll_to_bottom)
 
     def _append_assistant_message(self, text, scroll=True):
         """添加 AI 消息"""
         bubble = BubbleWidget(text, is_user=False)
-        self.message_layout.insertWidget(self.message_layout.count() - 1, bubble)
+        bubble.setMaximumWidth(BubbleWidget.MAX_WIDTH + 24)
+        # 左对齐
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(bubble)
+        layout.addStretch()
+        self.message_layout.insertWidget(self.message_layout.count() - 1, container)
         if scroll:
             QTimer.singleShot(10, self._scroll_to_bottom)
 
