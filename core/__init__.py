@@ -30,6 +30,25 @@ from core.agent_chat import (
     AgentChatFactory,
     create_agent_chat_service,
 )
+from core.mcp_config import (
+    MCPConfig,
+    MCPServerConfig,
+    PREDEFINED_MCP_SERVERS,
+    load_mcp_config,
+    save_mcp_config,
+)
+from core.mcp_client import (
+    MCPManager,
+    MCPServerConnection,
+    MCPTool,
+    get_mcp_manager,
+    initialize_mcp,
+)
+from core.mcp_tools import (
+    MCPToolWrapper,
+    MCPToolChain,
+    create_mcp_langchain_tool,
+)
 
 __all__ = [
     # 传统 Chat 服务
@@ -63,4 +82,20 @@ __all__ = [
     "AgentChatService",
     "AgentChatFactory",
     "create_agent_chat_service",
+    # MCP 配置
+    "MCPConfig",
+    "MCPServerConfig",
+    "PREDEFINED_MCP_SERVERS",
+    "load_mcp_config",
+    "save_mcp_config",
+    # MCP 客户端
+    "MCPManager",
+    "MCPServerConnection",
+    "MCPTool",
+    "get_mcp_manager",
+    "initialize_mcp",
+    # MCP 工具
+    "MCPToolWrapper",
+    "MCPToolChain",
+    "create_mcp_langchain_tool",
 ]

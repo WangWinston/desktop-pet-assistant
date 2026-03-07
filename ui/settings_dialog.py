@@ -2,10 +2,11 @@
 import os
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QComboBox, QFileDialog, QInputDialog, QDialog, QHBoxLayout,
+    QCheckBox, QComboBox, QFileDialog, QInputDialog, QDialog, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QMessageBox, QPushButton,
     QPlainTextEdit, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
     QButtonGroup, QRadioButton, QScrollArea, QAbstractItemView,
+    QDialogButtonBox, QFormLayout,
 )
 from utils.config_loader import ConfigLoader
 
@@ -347,11 +348,153 @@ class SettingsDialog(QDialog):
         chat_size_layout.addStretch()
         state_layout.addLayout(chat_size_layout)
 
+        # 休息提醒配置
+        rest_title = QLabel("⏰ 休息提醒配置")
+        rest_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333; margin-top: 16px;")
+        state_layout.addWidget(rest_title)
+
+        # 启用开关
+        self.rest_enabled_cb = QRadioButton("启用休息提醒")
+        rest_config = self.config.get("rest_reminder", {})
+        self.rest_enabled_cb.setChecked(rest_config.get("enabled", False))
+        self.rest_enabled_cb.setStyleSheet("font-size: 13px; color: #333;")
+        state_layout.addWidget(self.rest_enabled_cb)
+
+        # 提醒间隔
+        interval_layout = QHBoxLayout()
+        interval_label = QLabel("提醒间隔:")
+        interval_label.setStyleSheet("color: #666; font-size: 12px;")
+        interval_label.setFixedWidth(70)
+        interval_layout.addWidget(interval_label)
+
+        self.rest_interval_combo = QComboBox()
+        self.rest_interval_combo.addItems(["30 分钟", "1 小时", "2 小时", "3 小时"])
+        current_interval = rest_config.get("interval", 3600)
+        if current_interval == 1800:
+            self.rest_interval_combo.setCurrentIndex(0)
+        elif current_interval == 3600:
+            self.rest_interval_combo.setCurrentIndex(1)
+        elif current_interval == 7200:
+            self.rest_interval_combo.setCurrentIndex(2)
+        elif current_interval == 10800:
+            self.rest_interval_combo.setCurrentIndex(3)
+        else:
+            self.rest_interval_combo.setCurrentIndex(1)  # 默认 1 小时
+        self.rest_interval_combo.setStyleSheet("""
+            QComboBox {
+                padding: 6px 10px;
+                border: 1px solid #E8E8E8;
+                border-radius: 6px;
+                background: white;
+                font-size: 12px;
+                min-width: 100px;
+            }
+        """)
+        interval_layout.addWidget(self.rest_interval_combo)
+        interval_layout.addStretch()
+        state_layout.addLayout(interval_layout)
+
+        # 提醒内容
+        rest_msg_label = QLabel("提醒内容:")
+        rest_msg_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 8px;")
+        state_layout.addWidget(rest_msg_label)
+
+        self.rest_message_input = QLineEdit()
+        rest_config = self.config.get("rest_reminder", {})
+        self.rest_message_input.setText(rest_config.get("message", "⏰ 该休息啦！起来活动一下吧~"))
+        self.rest_message_input.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #E8E8E8;
+                border-radius: 6px;
+                background: white;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #FFD93D;
+            }
+        """)
+        state_layout.addWidget(self.rest_message_input)
+
+        # 待办提醒配置
+        todo_title = QLabel("📝 待办提醒配置")
+        todo_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333; margin-top: 20px;")
+        state_layout.addWidget(todo_title)
+
+        todo_config = self.config.get("todo_reminder", {})
+        
+        # 待办列表
+        self.todo_list = QListWidget()
+        self.todo_list.setMaximumHeight(120)
+        self.todo_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+                background: white;
+                font-size: 12px;
+                padding: 4px;
+            }
+            QListWidget::item {
+                padding: 6px 10px;
+                border-radius: 4px;
+            }
+        """)
+        
+        # 加载待办事项
+        todos = todo_config.get("todos", [])
+        for todo in todos:
+            content = todo.get("content", "")
+            time = todo.get("time", "")
+            done = todo.get("done", False)
+            item_text = f"[{'✓' if done else '○'}] {content} @ {time}"
+            self.todo_list.addItem(item_text)
+        state_layout.addWidget(self.todo_list)
+
+        # 待办操作按钮
+        todo_btn_layout = QHBoxLayout()
+        
+        add_todo_btn = QPushButton("+ 添加")
+        add_todo_btn.setFixedHeight(28)
+        add_todo_btn.setCursor(Qt.PointingHandCursor)
+        add_todo_btn.setStyleSheet("""
+            QPushButton {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                padding: 0 12px;
+            }
+            QPushButton:hover { background: #45a049; }
+        """)
+        add_todo_btn.clicked.connect(self._add_todo)
+        todo_btn_layout.addWidget(add_todo_btn)
+
+        del_todo_btn = QPushButton("删除")
+        del_todo_btn.setFixedHeight(28)
+        del_todo_btn.setCursor(Qt.PointingHandCursor)
+        del_todo_btn.setStyleSheet("""
+            QPushButton {
+                background: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                padding: 0 12px;
+            }
+            QPushButton:hover { background: #da190b; }
+        """)
+        del_todo_btn.clicked.connect(self._delete_todo)
+        todo_btn_layout.addWidget(del_todo_btn)
+        
+        todo_btn_layout.addStretch()
+        state_layout.addLayout(todo_btn_layout)
+
         state_layout.addStretch()
         state_scroll.setWidget(state_content)
         tabs.addTab(state_scroll, "状态")
 
-        # === 扩展设置 ===
+        # === 技能设置 ===
         ext_scroll = QScrollArea()
         ext_scroll.setWidgetResizable(True)
         ext_scroll.setFrameShape(QScrollArea.NoFrame)
@@ -412,7 +555,7 @@ class SettingsDialog(QDialog):
         ext_layout.addWidget(loaded_title)
 
         self.skills_list = QListWidget()
-        self.skills_list.setMaximumHeight(150)
+        self.skills_list.setMaximumHeight(120)
         self.skills_list.setStyleSheet("""
             QListWidget {
                 border: 1px solid #E8E8E8;
@@ -434,6 +577,77 @@ class SettingsDialog(QDialog):
             item_text = f"{skill_name}: {desc}..." if len(skill_info.get("description", "")) > 50 else f"{skill_name}: {desc}"
             self.skills_list.addItem(item_text if desc else skill_name)
         ext_layout.addWidget(self.skills_list)
+
+        # MCP 配置（JSON 格式）
+        mcp_title = QLabel("🔌 MCP 配置")
+        mcp_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #333; margin-top: 16px;")
+        ext_layout.addWidget(mcp_title)
+
+        mcp_hint = QLabel("Model Context Protocol - 使用 JSON 格式配置 MCP 服务器")
+        mcp_hint.setStyleSheet("color: #999; font-size: 11px; margin-bottom: 4px;")
+        ext_layout.addWidget(mcp_hint)
+
+        self.mcp_enabled_cb = QRadioButton("启用 MCP")
+        mcp_config = self.config.get("mcp", {})
+        self.mcp_enabled_cb.setChecked(mcp_config.get("enabled", False))
+        self.mcp_enabled_cb.setStyleSheet("font-size: 13px; color: #333;")
+        ext_layout.addWidget(self.mcp_enabled_cb)
+
+        mcp_json_label = QLabel("MCP 服务器配置 (JSON):")
+        mcp_json_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 8px;")
+        ext_layout.addWidget(mcp_json_label)
+
+        self.mcp_json_input = QPlainTextEdit()
+        self.mcp_json_input.setMinimumHeight(200)
+        # 格式化显示 JSON
+        import json
+        servers = mcp_config.get("servers", [])
+        if servers:
+            formatted_json = json.dumps(servers, indent=2, ensure_ascii=False)
+        else:
+            # 默认示例配置
+            default_mcp = [
+                {
+                    "name": "filesystem",
+                    "transport": "stdio",
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+                    "enabled": False,
+                    "description": "文件系统访问"
+                },
+                {
+                    "name": "brave-search",
+                    "transport": "stdio",
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+                    "env": {"BRAVE_API_KEY": ""},
+                    "enabled": False,
+                    "description": "Brave 搜索"
+                }
+            ]
+            formatted_json = json.dumps(default_mcp, indent=2, ensure_ascii=False)
+        self.mcp_json_input.setPlainText(formatted_json)
+        self.mcp_json_input.setPlaceholderText('[\n  {\n    "name": "server-name",\n    "transport": "stdio",\n    "command": "npx",\n    "args": ["-y", "@modelcontextprotocol/server-xxx"],\n    "enabled": true\n  }\n]')
+        self.mcp_json_input.setStyleSheet("""
+            QPlainTextEdit {
+                padding: 10px;
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+                background: white;
+                font-size: 12px;
+                font-family: 'Consolas', 'Courier New', monospace;
+                color: #333;
+            }
+            QPlainTextEdit:focus {
+                border: 2px solid #FFD93D;
+            }
+        """)
+        ext_layout.addWidget(self.mcp_json_input)
+
+        # JSON 格式提示
+        json_hint = QLabel("💡 点击保存时自动验证 JSON 格式")
+        json_hint.setStyleSheet("color: #999; font-size: 11px; margin-top: 4px;")
+        ext_layout.addWidget(json_hint)
 
         ext_layout.addStretch()
         ext_scroll.setWidget(ext_content)
@@ -554,10 +768,42 @@ class SettingsDialog(QDialog):
         self.config["ui"]["pet_size"] = self.get_selected_size()
         self.config["ui"]["chat_window_size"] = self.get_chat_window_size()
 
+        # 保存休息提醒配置
+        self.config.setdefault("rest_reminder", {})
+        self.config["rest_reminder"]["enabled"] = self.rest_enabled_cb.isChecked()
+        
+        # 解析间隔
+        interval_map = {0: 1800, 1: 3600, 2: 7200, 3: 10800}
+        self.config["rest_reminder"]["interval"] = interval_map.get(self.rest_interval_combo.currentIndex(), 3600)
+        
+        # 保存提醒内容（单条）
+        self.config["rest_reminder"]["message"] = self.rest_message_input.text().strip() or "⏰ 该休息啦！"
+
+        # 保存待办提醒配置
+        self.config.setdefault("todo_reminder", {})
+        self.config["todo_reminder"]["enabled"] = True
+        
+        # 从列表中收集待办事项
+        todos = []
+        for i in range(self.todo_list.count()):
+            item_text = self.todo_list.item(i).text()
+            # 解析格式: [○] 内容 @ 时间
+            import re
+            match = re.match(r'\[(\W)\]\s*(.+)\s*@\s*(.+)', item_text)
+            if match:
+                done = (match.group(1) == '✓')
+                content = match.group(2).strip()
+                time = match.group(3).strip()
+                todos.append({"content": content, "time": time, "done": done})
+        self.config["todo_reminder"]["todos"] = todos
+
         # 保存技能配置
         self.config.setdefault("skills", {})
         self.config["skills"]["enabled"] = self.skills_enabled_cb.isChecked()
         self.config["skills"]["directory"] = self.skills_dir_input.text().strip() or "skills"
+
+        # 保存 MCP 配置
+        self._save_mcp_config()
 
         ConfigLoader.save(self.config)
 
@@ -566,3 +812,250 @@ class SettingsDialog(QDialog):
             QMessageBox.information(self, "提示", "API 配置已更新，重启应用后生效")
 
         self.accept()
+
+    def _create_mcp_server_widget(self, server_config, is_enabled: bool, user_config: dict) -> QWidget:
+        """创建单个 MCP 服务器配置组件"""
+        widget = QWidget()
+        widget.setStyleSheet("""
+            QWidget {
+                background: white;
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+            }
+        """)
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(6)
+        layout.setContentsMargins(12, 10, 12, 10)
+
+        server_name = server_config.name
+
+        # 标题行：启用开关 + 名称
+        header_layout = QHBoxLayout()
+
+        enabled_cb = QRadioButton()
+        enabled_cb.setChecked(is_enabled)
+        enabled_cb.setFixedWidth(20)
+        enabled_cb.setStyleSheet("QRadioButton::indicator { width: 16px; height: 16px; }")
+        header_layout.addWidget(enabled_cb)
+
+        name_label = QLabel(server_name)
+        name_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #333; background: transparent;")
+        header_layout.addWidget(name_label)
+
+        # 描述
+        desc = server_config.description
+        if desc:
+            desc_label = QLabel(f"  · {desc}")
+            desc_label.setStyleSheet("color: #999; font-size: 11px; background: transparent;")
+            header_layout.addWidget(desc_label)
+
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+
+        # 环境变量配置（如 API Key）
+        env_configs = server_config.env
+        env_inputs = {}
+
+        if env_configs:
+            env_widget = QWidget()
+            env_widget.setStyleSheet("background: transparent;")
+            env_layout = QVBoxLayout(env_widget)
+            env_layout.setSpacing(4)
+            env_layout.setContentsMargins(26, 0, 0, 0)
+
+            for env_key, env_default in env_configs.items():
+                env_row = QHBoxLayout()
+                env_label = QLabel(f"{env_key}:")
+                env_label.setStyleSheet("color: #666; font-size: 11px; background: transparent;")
+                env_label.setFixedWidth(120)
+                env_row.addWidget(env_label)
+
+                env_input = QLineEdit()
+                # 从用户配置中读取
+                user_env = user_config.get("env", {})
+                env_input.setText(user_env.get(env_key, ""))
+                env_input.setPlaceholderText(f"输入 {env_key}")
+                env_input.setEchoMode(QLineEdit.Password)
+                env_input.setStyleSheet("""
+                    QLineEdit {
+                        padding: 6px 10px;
+                        border: 1px solid #E0E0E0;
+                        border-radius: 4px;
+                        background: #FAFAFA;
+                        font-size: 12px;
+                    }
+                    QLineEdit:focus { border-color: #FFD93D; }
+                """)
+                env_row.addWidget(env_input)
+                env_layout.addLayout(env_row)
+                env_inputs[env_key] = env_input
+
+            layout.addWidget(env_widget)
+
+        # 存储控件引用
+        widget.enabled_cb = enabled_cb
+        widget.env_inputs = env_inputs
+        widget.server_name = server_name
+
+        return widget
+
+    def _on_mcp_enabled_changed(self, enabled: bool):
+        """MCP 总开关状态变化"""
+        self._update_mcp_status()
+
+    def _update_mcp_status(self):
+        """更新 MCP 状态提示"""
+        if self.mcp_enabled_cb.isChecked():
+            enabled_count = sum(1 for w in self.mcp_server_widgets.values() if w.enabled_cb.isChecked())
+            self.mcp_status_label.setText(f"✓ MCP 已启用，{enabled_count} 个服务器将连接")
+            self.mcp_status_label.setStyleSheet("color: #4CAF50; font-size: 11px; margin-top: 8px;")
+        else:
+            self.mcp_status_label.setText("○ MCP 未启用")
+            self.mcp_status_label.setStyleSheet("color: #999; font-size: 11px; margin-top: 8px;")
+
+    def _add_custom_mcp_server(self):
+        """添加自定义 MCP 服务器"""
+        from PyQt5.QtWidgets import QDialogButtonBox
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("添加 MCP 服务器")
+        dialog.setMinimumWidth(400)
+        dialog.setStyleSheet(self.styleSheet())
+
+        layout = QVBoxLayout(dialog)
+
+        form_widget = QWidget()
+        form_layout = QVBoxLayout(form_widget)
+        form_layout.setSpacing(10)
+
+        # 名称
+        name_layout = QHBoxLayout()
+        name_label = QLabel("名称:")
+        name_label.setFixedWidth(80)
+        name_input = QLineEdit()
+        name_input.setPlaceholderText("my-server")
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(name_input)
+        form_layout.addLayout(name_layout)
+
+        # 传输类型
+        transport_layout = QHBoxLayout()
+        transport_label = QLabel("传输类型:")
+        transport_label.setFixedWidth(80)
+        transport_combo = QComboBox()
+        transport_combo.addItems(["stdio", "sse"])
+        transport_layout.addWidget(transport_label)
+        transport_layout.addWidget(transport_combo)
+        form_layout.addLayout(transport_layout)
+
+        # 命令
+        cmd_layout = QHBoxLayout()
+        cmd_label = QLabel("命令:")
+        cmd_label.setFixedWidth(80)
+        cmd_input = QLineEdit()
+        cmd_input.setPlaceholderText("npx")
+        cmd_layout.addWidget(cmd_label)
+        cmd_layout.addWidget(cmd_input)
+        form_layout.addLayout(cmd_layout)
+
+        # 参数
+        args_layout = QHBoxLayout()
+        args_label = QLabel("参数:")
+        args_label.setFixedWidth(80)
+        args_input = QLineEdit()
+        args_input.setPlaceholderText("-y, @modelcontextprotocol/server-xxx")
+        args_layout.addWidget(args_label)
+        args_layout.addWidget(args_input)
+        form_layout.addLayout(args_layout)
+
+        # 描述
+        desc_layout = QHBoxLayout()
+        desc_label = QLabel("描述:")
+        desc_label.setFixedWidth(80)
+        desc_input = QLineEdit()
+        desc_input.setPlaceholderText("服务器描述")
+        desc_layout.addWidget(desc_label)
+        desc_layout.addWidget(desc_input)
+        form_layout.addLayout(desc_layout)
+
+        layout.addWidget(form_widget)
+
+        # 按钮
+        btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        layout.addWidget(btn_box)
+
+        if dialog.exec_() == QDialog.Accepted:
+            name = name_input.text().strip()
+            if not name:
+                QMessageBox.warning(self, "提示", "请输入服务器名称")
+                return
+
+            if name in self.mcp_server_widgets:
+                QMessageBox.warning(self, "提示", "服务器名称已存在")
+                return
+
+            from core.mcp_config import MCPServerConfig
+            args_text = args_input.text().strip()
+            args = [a.strip() for a in args_text.split(",")] if args_text else []
+
+            server_config = MCPServerConfig(
+                name=name,
+                transport=transport_combo.currentText(),
+                command=cmd_input.text().strip() or None,
+                args=args,
+                description=desc_input.text().strip(),
+                enabled=True,
+            )
+
+            server_widget = self._create_mcp_server_widget(server_config, True, {})
+            self.mcp_servers_layout.addWidget(server_widget)
+            self.mcp_server_widgets[name] = server_widget
+            self._update_mcp_status()
+
+    def _save_mcp_config(self):
+        """保存 MCP 配置"""
+        import json
+
+        self.config.setdefault("mcp", {})
+        self.config["mcp"]["enabled"] = self.mcp_enabled_cb.isChecked()
+
+        # 解析 JSON 输入
+        json_text = self.mcp_json_input.toPlainText().strip()
+        
+        if not json_text:
+            self.config["mcp"]["servers"] = []
+            return
+
+        try:
+            servers = json.loads(json_text)
+            if not isinstance(servers, list):
+                QMessageBox.warning(self, "JSON 格式错误", "MCP 配置应为数组格式")
+                return
+            self.config["mcp"]["servers"] = servers
+        except json.JSONDecodeError as e:
+            QMessageBox.warning(self, "JSON 格式错误", f"JSON 解析失败：{str(e)}")
+            return
+
+    def _add_todo(self):
+        """添加待办事项"""
+        # 输入待办内容
+        content, ok = QInputDialog.getText(self, "添加待办", "待办内容:")
+        if not ok or not content.strip():
+            return
+        
+        # 输入提醒时间
+        time, ok = QInputDialog.getText(self, "设置时间", "提醒时间 (如 14:30):", text="09:00")
+        if not ok or not time.strip():
+            return
+        
+        # 添加到列表
+        item_text = f"[○] {content.strip()} @ {time.strip()}"
+        self.todo_list.addItem(item_text)
+    
+    def _delete_todo(self):
+        """删除选中的待办事项"""
+        current_row = self.todo_list.currentRow()
+        if current_row >= 0:
+            self.todo_list.takeItem(current_row)

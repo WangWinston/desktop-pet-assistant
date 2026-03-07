@@ -195,6 +195,9 @@ class AgentChatFactory:
         else:
             log.info("技能未启用")
         
+        # 加载内置工具（read_file, write_file）
+        agent.load_builtin_tools()
+        
         return AgentChatService(agent, persona_manager)
     
     @staticmethod
@@ -232,6 +235,9 @@ class AgentChatFactory:
             skill_loader = persona_manager.get_skill_loader()
             skills = skill_loader.build()
             agent.load_skills(skills, handlers)
+        
+        # 加载内置工具（read_file, write_file）
+        agent.load_builtin_tools()
         
         return AgentChatService(agent, persona_manager)
 

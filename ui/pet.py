@@ -93,6 +93,10 @@ class DesktopPet(QWidget):
         self.memory_manager.load_from_file()
         self.persona_manager = PersonaManager(self.config)
         
+        # 初始化 MCP（如果启用）
+        self._mcp_manager = None
+        self._init_mcp()
+        
         # 启用 Agent 模式（支持技能调用）
         agent_enabled = self.config.get("agent", {}).get("enabled", True)
         if agent_enabled:
@@ -109,13 +113,77 @@ class DesktopPet(QWidget):
         self._rest_enabled = False
         self._drag_pos = None
         self._chat_window = None
+        self._settings_dialog = None
         self._pet_size = self.config.get("ui", {}).get("pet_size", 100)
+        
+        # 读取休息提醒配置
+        self._rest_config = self.config.get("rest_reminder", {})
+        if self._rest_config.get("enabled", False):
+            self._rest_enabled = True
+            interval_ms = self._rest_config.get("interval", 3600) * 1000
+            self.rest_timer.start(interval_ms)
+            log.info(f"休息提醒已启用，间隔: {self._rest_config.get('interval', 3600)}秒")
+        
+        # 读取待办提醒配置
+        self._todo_config = self.config.get("todo_reminder", {})
+        self._last_todo_check = {}  # 记录已提醒的待办
 
         # 初始化窗口
         self._init_window()
         self._init_tray()
         self._init_pet()
         self._init_timers()
+
+    def _init_mcp(self):
+        """初始化 MCP 服务"""
+        mcp_config = self.config.get("mcp", {})
+        if not mcp_config.get("enabled", False):
+            log.debug("MCP 功能未启用")
+            return
+        
+        try:
+            import asyncio
+            from core.mcp_config import MCPConfig, MCPServerConfig
+            from core.mcp_client import initialize_mcp
+            
+            # 构建配置
+            servers = []
+            server_list = mcp_config.get("servers") or []
+            for server_data in server_list:
+                if server_data.get("enabled", False):
+                    servers.append(MCPServerConfig.from_dict(server_data))
+            
+            if not servers:
+                log.info("没有启用的 MCP 服务器")
+                return
+            
+            config = MCPConfig(enabled=True, servers=servers)
+            
+            # 异步初始化
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            if loop.is_running():
+                # 在后台线程中初始化
+                import threading
+                def init_mcp_async():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    self._mcp_manager = new_loop.run_until_complete(initialize_mcp(config))
+                thread = threading.Thread(target=init_mcp_async, daemon=True)
+                thread.start()
+            else:
+                self._mcp_manager = loop.run_until_complete(initialize_mcp(config))
+            
+            log.info("MCP 初始化完成")
+            
+        except ImportError as e:
+            log.warning(f"MCP SDK 未安装: {e}")
+        except Exception as e:
+            log.error(f"MCP 初始化失败: {e}")
 
     def _load_states_config(self):
         """加载状态配置"""
@@ -325,6 +393,12 @@ class DesktopPet(QWidget):
         # 休息提醒
         self.rest_timer = QTimer(self)
         self.rest_timer.timeout.connect(self._show_rest_reminder)
+        
+        # 待办提醒定时器（每分钟检查一次）
+        self.todo_timer = QTimer(self)
+        self.todo_timer.timeout.connect(self._check_todo_reminder)
+        self.todo_timer.start(60000)  # 每分钟检查
+        self._check_todo_reminder()  # 启动时检查一次
 
     def _random_position(self):
         """随机位置"""
@@ -369,6 +443,56 @@ class DesktopPet(QWidget):
             (screen.width() - self.width()) // 2,
             (screen.height() - self.height()) // 2,
         )
+        
+        # 使用配置的提醒内容
+        messages = self._rest_config.get("message", "")
+        if messages:
+            rest_dialog = messages
+        else:
+            rest_dialog = self.states.get(self.STATE_REST, {}).get("dialog", "⏰ 该休息啦！")
+        
+        # 显示对话框
+        self._show_dialog(rest_dialog)
+
+    def _check_todo_reminder(self):
+        """检查待办事项是否到提醒时间"""
+        from datetime import datetime
+        
+        todos = self._todo_config.get("todos", [])
+        if not todos:
+            return
+        
+        current_time = datetime.now().strftime("%H:%M")
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
+        for todo in todos:
+            if todo.get("done", False):
+                continue  # 跳过已完成的
+            
+            todo_time = todo.get("time", "")
+            todo_content = todo.get("content", "")
+            
+            # 检查是否到达提醒时间
+            if todo_time == current_time:
+                # 检查今天是否已经提醒过
+                check_key = f"{current_date}_{todo_content}_{todo_time}"
+                if check_key not in self._last_todo_check:
+                    self._show_todo_reminder(todo_content, todo_time)
+                    self._last_todo_check[check_key] = True
+
+    def _show_todo_reminder(self, content: str, time: str):
+        """显示待办提醒"""
+        self._current_state = self.STATE_REST
+        self._show_state(self.STATE_REST)
+        screen = QApplication.primaryScreen().geometry()
+        self.move(
+            (screen.width() - self.width()) // 2,
+            (screen.height() - self.height()) // 2,
+        )
+        
+        # 显示待办提醒
+        rest_dialog = f"📝 待办提醒: {content} @ {time}"
+        self._show_dialog(rest_dialog)
 
     def _reset_to_idle(self):
         """重置为待机状态"""
@@ -441,7 +565,9 @@ class DesktopPet(QWidget):
         elif action == rest_action:
             self._rest_enabled = not self._rest_enabled
             if self._rest_enabled:
-                self.rest_timer.start(3600000)
+                # 使用配置的间隔（毫秒）
+                interval_ms = self._rest_config.get("interval", 3600) * 1000
+                self.rest_timer.start(interval_ms)
             else:
                 self.rest_timer.stop()
 
@@ -488,6 +614,8 @@ class DesktopPet(QWidget):
             self.chat_service,
             self.memory_manager,
             self.persona_manager,
+            None,
+            self,  # 传入 pet 引用
         )
         self._chat_window.settings_requested.connect(self._open_settings)
         self._chat_window.show()
@@ -496,6 +624,7 @@ class DesktopPet(QWidget):
     def _open_settings(self):
         """打开设置"""
         dialog = SettingsDialog(self.config, self._chat_window)
+        self._settings_dialog = dialog  # 保存引用以便刷新
         if dialog.exec_():
             self.chat_service.update_config(self.config)
             # 重新加载状态配置
@@ -503,6 +632,8 @@ class DesktopPet(QWidget):
             self._load_idle_resources()
             # 更新所有UI
             self.update_all_ui()
+        
+        self._settings_dialog = None  # 对话框关闭后清除引用
 
     def _quit(self):
         """退出程序"""

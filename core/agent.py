@@ -179,6 +179,145 @@ class PetAgent:
         self._rebuild_agent()
         return self
     
+    def load_mcp_tools(self, mcp_manager=None) -> "PetAgent":
+        """
+        从 MCP 管理器加载工具
+        
+        Args:
+            mcp_manager: MCP 管理器实例，如果为 None 则获取全局实例
+            
+        Returns:
+            返回自身，支持链式调用
+        """
+        try:
+            from core.mcp_client import get_mcp_manager
+            from core.mcp_tools import MCPToolChain
+            
+            manager = mcp_manager or get_mcp_manager()
+            
+            if not manager.is_available:
+                log.debug("MCP 不可用，跳过加载 MCP 工具")
+                return self
+            
+            mcp_tools = MCPToolChain().from_manager(manager).build()
+            
+            if mcp_tools:
+                log.info(f"加载 {len(mcp_tools)} 个 MCP 工具")
+                self._tools.extend(mcp_tools)
+                self._rebuild_agent()
+            else:
+                log.debug("没有可用的 MCP 工具")
+                
+        except ImportError as e:
+            log.warning(f"MCP SDK 未安装: {e}")
+        except Exception as e:
+            log.error(f"加载 MCP 工具失败: {e}")
+        
+        return self
+    
+    def load_builtin_tools(self) -> "PetAgent":
+        """
+        加载内置工具（文件系统操作 + 命令执行）
+        
+        Returns:
+            返回自身，支持链式调用
+        """
+        from langchain_core.tools import Tool
+        
+        def read_file_func(file_path: str) -> str:
+            """读取文件内容"""
+            import os
+            abs_path = os.path.abspath(file_path)
+            if not os.path.exists(abs_path):
+                return f"文件不存在: {file_path}"
+            try:
+                with open(abs_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                return f"文件: {file_path}\n内容:\n{content}"
+            except Exception as e:
+                return f"读取文件失败: {str(e)}"
+        
+        def write_file_func(file_path: str, content: str) -> str:
+            """写入文件内容"""
+            import os
+            abs_path = os.path.abspath(file_path)
+            try:
+                # 确保目录存在
+                os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                with open(abs_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return f"文件已写入: {file_path}"
+            except Exception as e:
+                return f"写入文件失败: {str(e)}"
+        
+        def execute_command_func(command: str) -> str:
+            """执行命令行指令"""
+            import subprocess
+            import os
+            
+            # 安全检查：禁止危险命令
+            dangerous_patterns = ["rm -rf /", "format", "del /f /s /q", "shutdown", "restart"]
+            for pattern in dangerous_patterns:
+                if pattern.lower() in command.lower():
+                    return f"拒绝执行危险命令: {command}"
+            
+            try:
+                # 在项目目录下执行
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    encoding="utf-8",
+                    errors="ignore",
+                    cwd=os.getcwd()
+                )
+                output = result.stdout
+                if result.stderr:
+                    output += f"\n错误:\n{result.stderr}"
+                if not output:
+                    output = "命令执行成功，无输出"
+                return output
+            except subprocess.TimeoutExpired:
+                return "命令执行超时（30秒）"
+            except Exception as e:
+                return f"命令执行失败: {str(e)}"
+        
+        # 创建内置工具
+        read_tool = Tool(
+            name="read_file",
+            description="读取文件内容。输入文件路径，返回文件内容。用于查看代码、配置文件等。",
+            func=read_file_func
+        )
+        
+        write_tool = Tool(
+            name="write_file",
+            description="写入文件内容。输入文件路径和内容，将内容写入文件。用于创建或修改代码、配置文件等。",
+            func=write_file_func
+        )
+        
+        exec_tool = Tool(
+            name="execute_command",
+            description="执行命令行指令。输入要执行的命令，返回命令输出。用于运行Python脚本、安装依赖、执行git命令等。注意：危险命令会被拒绝执行。",
+            func=execute_command_func
+        )
+        
+        # 检查是否已存在
+        existing_names = {t.name for t in self._tools}
+        if "read_file" not in existing_names:
+            self._tools.append(read_tool)
+            log.info("添加内置工具: read_file")
+        if "write_file" not in existing_names:
+            self._tools.append(write_tool)
+            log.info("添加内置工具: write_file")
+        if "execute_command" not in existing_names:
+            self._tools.append(exec_tool)
+            log.info("添加内置工具: execute_command")
+        
+        self._rebuild_agent()
+        return self
+
     def load_skills_from_directory(
         self,
         directory: str,
