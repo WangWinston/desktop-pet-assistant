@@ -1,5 +1,6 @@
 """设置对话框模块 - 修复所有问题"""
 import os
+import sys
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
@@ -11,6 +12,18 @@ from PyQt5.QtWidgets import (
 )
 from utils.config_loader import ConfigLoader
 from utils.todo_storage import TodoStorage
+
+
+def get_system_font_family():
+    """获取跨平台字体族名称（用于样式表）"""
+    if sys.platform == 'darwin':  # macOS
+        return "'PingFang SC', '-apple-system', 'Helvetica Neue', sans-serif"
+    elif sys.platform == 'win32':  # Windows
+        return "'Microsoft YaHei UI', '微软雅黑', sans-serif"
+    else:  # Linux 等
+        return "'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif"
+
+FONT_FAMILY = get_system_font_family()
 
 
 class SettingsDialog(QDialog):
@@ -28,68 +41,68 @@ class SettingsDialog(QDialog):
             self.setWindowIcon(QIcon(icon_path))
 
         # 现代化样式
-        self.setStyleSheet("""
-            QDialog {
+        self.setStyleSheet(f"""
+            QDialog {{
                 background-color: #FAFAFA;
-                font-family: 'Microsoft YaHei UI', '微软雅黑', sans-serif;
-            }
-            QLabel {
+                font-family: {FONT_FAMILY};
+            }}
+            QLabel {{
                 color: #333;
                 font-size: 13px;
                 background: transparent;
-            }
-            QLineEdit {
+            }}
+            QLineEdit {{
                 padding: 10px 14px;
                 border: 1px solid #E8E8E8;
                 border-radius: 8px;
                 background: white;
                 font-size: 13px;
                 color: #333;
-            }
-            QLineEdit:focus {
+            }}
+            QLineEdit:focus {{
                 border: 2px solid #FFD93D;
                 padding: 9px 13px;
-            }
-            QLineEdit::placeholder {
+            }}
+            QLineEdit::placeholder {{
                 color: #BBB;
-            }
-            QPlainTextEdit {
+            }}
+            QPlainTextEdit {{
                 padding: 10px;
                 border: 1px solid #E8E8E8;
                 border-radius: 8px;
                 background: white;
                 font-size: 13px;
                 color: #333;
-            }
-            QPlainTextEdit:focus {
+            }}
+            QPlainTextEdit:focus {{
                 border: 2px solid #FFD93D;
-            }
-            QListWidget {
+            }}
+            QListWidget {{
                 border: 1px solid #E8E8E8;
                 border-radius: 8px;
                 background: white;
                 font-size: 13px;
                 padding: 4px;
-            }
-            QListWidget::item {
+            }}
+            QListWidget::item {{
                 padding: 6px 10px;
                 min-height: 22px;
                 border-radius: 4px;
-            }
-            QListWidget::item:selected {
+            }}
+            QListWidget::item:selected {{
                 background: #FFF9E6;
                 color: #333;
-            }
-            QListWidget::item:hover {
+            }}
+            QListWidget::item:hover {{
                 background: #FFFBF0;
-            }
-            QTabWidget::pane {
+            }}
+            QTabWidget::pane {{
                 border: 1px solid #E8E8E8;
                 border-radius: 10px;
                 background: white;
                 margin-top: -1px;
-            }
-            QTabBar::tab {
+            }}
+            QTabBar::tab {{
                 padding: 10px 24px;
                 background: #F5F5F5;
                 border-top-left-radius: 8px;
@@ -97,49 +110,49 @@ class SettingsDialog(QDialog):
                 margin-right: 2px;
                 font-size: 13px;
                 color: #666;
-            }
-            QTabBar::tab:selected {
+            }}
+            QTabBar::tab:selected {{
                 background: white;
                 border-bottom: 2px solid #FFD93D;
                 color: #333;
                 font-weight: 500;
-            }
-            QTabBar::tab:hover:!selected {
+            }}
+            QTabBar::tab:hover:!selected {{
                 background: #EBEBEB;
-            }
-            QComboBox {
+            }}
+            QComboBox {{
                 padding: 10px 14px;
                 border: 1px solid #E8E8E8;
                 border-radius: 8px;
                 background: white;
                 font-size: 13px;
-            }
-            QComboBox:focus {
+            }}
+            QComboBox:focus {{
                 border: 2px solid #FFD93D;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox::drop-down {{
                 border: none;
                 width: 24px;
-            }
-            QRadioButton {
+            }}
+            QRadioButton {{
                 font-size: 13px;
                 color: #333;
                 spacing: 8px;
-            }
-            QRadioButton::indicator {
+            }}
+            QRadioButton::indicator {{
                 width: 18px;
                 height: 18px;
-            }
-            QRadioButton::indicator:checked {
+            }}
+            QRadioButton::indicator:checked {{
                 background: #FFD93D;
                 border-radius: 9px;
                 border: 2px solid #FFC107;
-            }
-            QRadioButton::indicator:unchecked {
+            }}
+            QRadioButton::indicator:unchecked {{
                 background: white;
                 border: 2px solid #DDD;
                 border-radius: 9px;
-            }
+            }}
         """)
 
         self._init_ui()
@@ -561,16 +574,16 @@ class SettingsDialog(QDialog):
         browse_skills_btn.setFixedWidth(70)
         browse_skills_btn.setFixedHeight(36)
         browse_skills_btn.setCursor(Qt.PointingHandCursor)
-        browse_skills_btn.setStyleSheet("""
-            QPushButton {
+        browse_skills_btn.setStyleSheet(f"""
+            QPushButton {{
                 background: white;
                 color: #333;
                 border: 1px solid #E8E8E8;
                 border-radius: 8px;
                 font-size: 13px;
-                font-family: 'Microsoft YaHei UI', sans-serif;
-            }
-            QPushButton:hover { background: #F5F5F5; border-color: #D0D0D0; }
+                font-family: {FONT_FAMILY};
+            }}
+            QPushButton:hover {{ background: #F5F5F5; border-color: #D0D0D0; }}
         """)
         browse_skills_btn.clicked.connect(self._browse_skills_dir)
         skills_dir_layout.addWidget(browse_skills_btn)

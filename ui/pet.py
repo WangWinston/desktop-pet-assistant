@@ -25,6 +25,19 @@ from utils.config_loader import ConfigLoader
 from utils.logger import get_logger, init_logging
 from utils.todo_storage import TodoStorage
 
+
+# 跨平台字体支持
+def get_system_font_family():
+    """获取跨平台字体族名称"""
+    if sys.platform == 'darwin':  # macOS
+        return "'PingFang SC', '-apple-system', 'Helvetica Neue', sans-serif"
+    elif sys.platform == 'win32':  # Windows
+        return "'Microsoft YaHei UI', '微软雅黑', sans-serif"
+    else:  # Linux 等
+        return "'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif"
+
+FONT_FAMILY = get_system_font_family()
+
 # 模块日志
 log = get_logger("pet")
 
@@ -249,7 +262,7 @@ class DesktopPet(QWidget):
         self.talk_label = QLabel(self)
         self.talk_label.setStyleSheet(f"""
             QLabel {{
-                font-family: 'Microsoft YaHei UI';
+                font-family: {FONT_FAMILY};
                 font-size: {font_size}px;
                 color: #333;
                 background-color: white;
@@ -331,6 +344,8 @@ class DesktopPet(QWidget):
         """播放动画（统一缩放）"""
         if os.path.exists(anim_path):
             self.movie = QMovie(anim_path)
+            # macOS 兼容性：设置缓存模式以确保动画正常播放
+            self.movie.setCacheMode(QMovie.CacheAll)
             self.movie.setScaledSize(QSize(self._pet_size, self._pet_size))
             self.image_label.setMovie(self.movie)
             self.movie.start()
@@ -341,6 +356,7 @@ class DesktopPet(QWidget):
                 default = "pikaqiu/pikaqiu1.gif"
             if os.path.exists(default):
                 self.movie = QMovie(default)
+                self.movie.setCacheMode(QMovie.CacheAll)
                 self.movie.setScaledSize(QSize(self._pet_size, self._pet_size))
                 self.image_label.setMovie(self.movie)
                 self.movie.start()
@@ -367,7 +383,7 @@ class DesktopPet(QWidget):
             if style:
                 self.talk_label.setStyleSheet(f"""
                     QLabel {{
-                        font-family: 'Microsoft YaHei UI';
+                        font-family: {FONT_FAMILY};
                         font-size: {font_size}px;
                         border: none;
                         border-radius: 10px;
@@ -378,7 +394,7 @@ class DesktopPet(QWidget):
             else:
                 self.talk_label.setStyleSheet(f"""
                     QLabel {{
-                        font-family: 'Microsoft YaHei UI';
+                        font-family: {FONT_FAMILY};
                         font-size: {font_size}px;
                         color: #333;
                         background-color: white;
@@ -397,7 +413,7 @@ class DesktopPet(QWidget):
         self.talk_label.setText(text)
         self.talk_label.setStyleSheet(f"""
             QLabel {{
-                font-family: 'Microsoft YaHei UI';
+                font-family: {FONT_FAMILY};
                 font-size: {font_size}px;
                 color: #333;
                 background-color: white;
@@ -447,7 +463,7 @@ class DesktopPet(QWidget):
             font_size = max(10, int(self._pet_size / 12))
             self.talk_label.setStyleSheet(f"""
                 QLabel {{
-                    font-family: 'Microsoft YaHei UI';
+                    font-family: {FONT_FAMILY};
                     font-size: {font_size}px;
                     color: #333;
                     background-color: white;

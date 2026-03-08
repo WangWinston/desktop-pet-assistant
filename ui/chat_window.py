@@ -1,5 +1,6 @@
 """聊天窗口模块 - 精致圆角气泡对话框设计"""
 import os
+import sys
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF, QTime
@@ -14,6 +15,7 @@ from PyQt5.QtGui import (
     QTextOption,
     QIcon,
     QPixmap,
+    QKeyEvent,
 )
 from PyQt5.QtWidgets import (
     QApplication,
@@ -41,6 +43,32 @@ if TYPE_CHECKING:
     from core.chat import ChatService
     from core.memory import MemoryManager
     from core.persona import PersonaManager
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 跨平台字体支持
+# ═══════════════════════════════════════════════════════════════════
+def get_system_font_family():
+    """获取跨平台字体族名称（用于样式表）"""
+    if sys.platform == 'darwin':  # macOS
+        return "'PingFang SC', '-apple-system', 'Helvetica Neue', sans-serif"
+    elif sys.platform == 'win32':  # Windows
+        return "'Microsoft YaHei UI', '微软雅黑', sans-serif"
+    else:  # Linux 等
+        return "'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif"
+
+def get_system_font_name():
+    """获取跨平台字体名称（用于 QFont 构造函数）"""
+    if sys.platform == 'darwin':  # macOS
+        return 'PingFang SC'
+    elif sys.platform == 'win32':  # Windows
+        return 'Microsoft YaHei UI'
+    else:  # Linux 等
+        return 'Noto Sans CJK SC'
+
+# 系统字体常量
+FONT_FAMILY = get_system_font_family()
+FONT_NAME = get_system_font_name()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -150,7 +178,7 @@ class BubbleWidget(QWidget):
                 background-color: transparent;
                 color: {self._text_color};
                 border: none;
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 16px;
                 line-height: 1.5;
             }}
@@ -237,8 +265,8 @@ class BubbleWidget(QWidget):
         """更新文本内容"""
         max_content_width = max(0, self.MAX_WIDTH - 28)  # 减去左右内边距
 
-        # 使用样式表中定义的字体，确保宽度计算准确
-        font = QFont('Microsoft YaHei UI', 16)
+        # 使用跨平台字体
+        font = QFont(FONT_NAME, 16)
 
         if self.is_user:
             self.text_browser.setPlainText(self.text)
@@ -344,7 +372,7 @@ class WelcomeWidget(QWidget):
             painter.drawText(icon_x, icon_y, icon_text)
 
         # ===== 标题 =====
-        font_title = QFont("Microsoft YaHei UI", 14, QFont.Medium)
+        font_title = QFont(FONT_NAME, 14, QFont.Medium)
         painter.setFont(font_title)
         painter.setPen(QColor(Theme.TEXT_PRIMARY))
         fm_title = QFontMetrics(font_title)
@@ -354,7 +382,7 @@ class WelcomeWidget(QWidget):
         painter.drawText(title_x, title_y, title_text)
 
         # ===== 副标题 =====
-        font_sub = QFont("Microsoft YaHei UI", 10)
+        font_sub = QFont(FONT_NAME, 10)
         painter.setFont(font_sub)
         painter.setPen(QColor(Theme.TEXT_SECONDARY))
         fm_sub = QFontMetrics(font_sub)
@@ -378,7 +406,7 @@ class SystemMessageWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        font = QFont("Microsoft YaHei UI", 9)
+        font = QFont(FONT_NAME, 9)
         fm = QFontMetrics(font)
         text_width = fm.horizontalAdvance(self.text) + 28
         text_height = 26
@@ -433,7 +461,7 @@ class TodoDialog(QDialog):
                 border-radius: 16px;
             }}
             QLabel {{
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             QLineEdit {{
@@ -441,7 +469,7 @@ class TodoDialog(QDialog):
                 border: 1px solid {Theme.BORDER};
                 border-radius: 10px;
                 background: {Theme.BG_CHAT};
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 14px;
                 color: {Theme.TEXT_PRIMARY};
             }}
@@ -457,7 +485,7 @@ class TodoDialog(QDialog):
                 border: 1px solid {Theme.BORDER};
                 border-radius: 10px;
                 background: {Theme.BG_CHAT};
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 14px;
                 color: {Theme.TEXT_PRIMARY};
                 min-height: 20px;
@@ -496,7 +524,7 @@ class TodoDialog(QDialog):
                 padding: 12px 24px;
                 border: none;
                 border-radius: 10px;
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 14px;
                 font-weight: 500;
             }}
@@ -728,7 +756,7 @@ class ChatWindow(QWidget):
                 background: {Theme.BG_MAIN};
                 border: 1px solid {Theme.BORDER};
                 border-radius: {Radius.MD}px;
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 13px;
                 color: {Theme.TEXT_PRIMARY};
             }}
@@ -887,7 +915,7 @@ class ChatWindow(QWidget):
         self.title_label.setGeometry(Spacing.LG + 32, 0, w - 250, 56)
         self.title_label.setStyleSheet(f"""
             QLabel {{
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 16px;
                 font-weight: 600;
                 color: {Theme.TEXT_PRIMARY};
@@ -1006,7 +1034,7 @@ class ChatWindow(QWidget):
                 border: 1px solid {Theme.BORDER};
                 border-radius: 24px;
                 padding: 0 {Spacing.LG}px;
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 17px;
                 color: {Theme.TEXT_PRIMARY};
             }}
@@ -1031,7 +1059,7 @@ class ChatWindow(QWidget):
                 color: {Theme.TEXT_ON_PRIMARY};
                 border: none;
                 border-radius: 24px;
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 16px;
                 font-weight: 500;
             }}
@@ -1054,7 +1082,7 @@ class ChatWindow(QWidget):
                 color: {Theme.TEXT_SECONDARY};
                 border: none;
                 border-radius: 24px;
-                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-family: {FONT_FAMILY};
                 font-size: 16px;
             }}
             QPushButton:hover {{
@@ -1072,7 +1100,7 @@ class ChatWindow(QWidget):
         self.status_label.setGeometry(Spacing.LG, h - input_height - 22, w - Spacing.XXL, 20)
         self.status_label.setStyleSheet(f"""
             color: {Theme.TEXT_SECONDARY};
-            font-family: 'Microsoft YaHei UI', sans-serif;
+            font-family: {FONT_FAMILY};
             font-size: 12px;
             background: transparent;
         """)
@@ -1347,3 +1375,15 @@ class ChatWindow(QWidget):
 
     def mouseReleaseEvent(self, event):
         self._drag_pos = None
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """键盘事件处理 - macOS 兼容性增强"""
+        # 在 macOS 上，回车键可能需要特殊处理
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            # 如果输入框有焦点，触发发送
+            if self.message_input.hasFocus():
+                self._send_message()
+                event.accept()
+                return
+        # 其他情况交给父类处理
+        super().keyPressEvent(event)
