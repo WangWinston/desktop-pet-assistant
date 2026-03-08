@@ -219,11 +219,25 @@ class DesktopPet(QWidget):
 
     def _init_window(self):
         """初始化窗口"""
-        self.setWindowFlags(
-            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.SubWindow
-        )
-        self.setAutoFillBackground(False)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        # macOS 需要特殊的窗口设置
+        if sys.platform == 'darwin':
+            # macOS: 使用 Tool 窗口类型，避免被 Dock 和任务栏管理
+            self.setWindowFlags(
+                Qt.FramelessWindowHint |
+                Qt.WindowStaysOnTopHint |
+                Qt.Tool  # macOS 上使用 Tool 而不是 SubWindow
+            )
+            # macOS 需要设置这个属性才能正确显示透明背景
+            self.setAttribute(Qt.WA_TranslucentBackground, True)
+            # macOS 上需要设置这个属性确保窗口可以接收鼠标事件
+            self.setAttribute(Qt.WA_Hover, True)
+        else:
+            # Windows/Linux: 使用原有设置
+            self.setWindowFlags(
+                Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.SubWindow
+            )
+            self.setAutoFillBackground(False)
+            self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         # 设置任务栏图标
         icon_path = "assets/icon.png"

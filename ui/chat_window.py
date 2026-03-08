@@ -721,7 +721,11 @@ class ChatWindow(QWidget):
         self.setWindowTitle(f"{persona_manager.name}")
         self.setFixedSize(self.window_width, self.window_height)
         # 使用无边框置顶窗口，但不再启用整窗透明，以提升性能和稳定性
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # macOS 需要使用 Tool 窗口类型
+        if sys.platform == 'darwin':
+            self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        else:
+            self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
 
         # 设置窗口图标
         icon_path = "assets/icon.png"
