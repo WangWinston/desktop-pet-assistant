@@ -138,6 +138,8 @@ class BubbleWidget(QWidget):
         option = doc.defaultTextOption()
         option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         doc.setDefaultTextOption(option)
+        # 设置文档边距为0，避免额外留白
+        doc.setDocumentMargin(0)
 
         self.text_browser.setStyleSheet(
             f"""
@@ -147,15 +149,15 @@ class BubbleWidget(QWidget):
                 border: none;
                 font-family: 'Microsoft YaHei UI', sans-serif;
                 font-size: 16px;
-                line-height: 1.6;
+                line-height: 1.5;
             }}
-            /* 段落与标题 */
+            /* 段落与标题 - 减少边距避免留白 */
             p {{
-                margin: 4px 0;
+                margin: 2px 0;
             }}
             h1, h2, h3 {{
                 font-weight: 600;
-                margin: 6px 0 4px 0;
+                margin: 4px 0 2px 0;
             }}
             h1 {{
                 font-size: 20px;
@@ -172,7 +174,7 @@ class BubbleWidget(QWidget):
                 color: {self._text_color};
                 padding: 8px;
                 border-radius: 6px;
-                margin: 6px 0;
+                margin: 4px 0;
             }}
             code {{
                 background-color: {'#4A7FE0' if self.is_user else '#E8E8E8'};
@@ -232,6 +234,9 @@ class BubbleWidget(QWidget):
         """更新文本内容"""
         max_content_width = max(0, self.MAX_WIDTH - 28)  # 减去左右内边距
 
+        # 使用样式表中定义的字体，确保宽度计算准确
+        font = QFont('Microsoft YaHei UI', 16)
+
         if self.is_user:
             self.text_browser.setPlainText(self.text)
         else:
@@ -242,8 +247,8 @@ class BubbleWidget(QWidget):
             )
             self.text_browser.setHtml(html)
 
-        # 使用 QFontMetrics 计算文本实际宽度（解决中文宽度计算问题）
-        font = self.text_browser.font()
+        # 将字体应用到text_browser
+        self.text_browser.setFont(font)
         font_metrics = QFontMetrics(font)
 
         # 计算每行文本的宽度，取最大值
@@ -253,21 +258,30 @@ class BubbleWidget(QWidget):
             line_width = font_metrics.horizontalAdvance(line)
             max_line_width = max(max_line_width, line_width)
 
-        # 实际宽度 = 文本宽度 + 额外边距（代码块、列表等需要更多空间）
-        text_width = max_line_width + 40
+        # 实际宽度 = 文本宽度 + 紧凑边距
+        # 用户消息：紧凑显示；AI消息：给代码块等留更多空间
+        extra_padding = 24 if self.is_user else 32
+        text_width = max_line_width + extra_padding
         actual_content_width = min(text_width, max_content_width)
-        actual_content_width = max(actual_content_width, 50)  # 最小宽度
+        actual_content_width = max(actual_content_width, 30)  # 最小宽度
 
         # 设置文档宽度并计算高度
         doc = self.text_browser.document()
         doc.setTextWidth(actual_content_width)
+
+        # 计算文档高度
         height = doc.size().height()
 
+        # 根据内容类型调整高度
+        # 纯文本高度较紧凑，Markdown内容需要更多空间
+        min_height = 20
         self.text_browser.setFixedWidth(int(actual_content_width))
-        self.text_browser.setFixedHeight(int(max(height, 24)))
-        # 气泡整体宽度 = 内容宽度 + 左右内边距
+        self.text_browser.setFixedHeight(int(max(height, min_height)))
+
+        # 气泡整体尺寸 = 内容尺寸 + 内边距
+        # 布局 margins: left=14, top=10, right=14, bottom=10
         self.setFixedWidth(int(actual_content_width + 28))
-        self.setFixedHeight(int(height + 20))
+        self.setFixedHeight(int(max(height, min_height) + 20))
 
     def set_text(self, text: str):
         """设置文本"""
@@ -1126,7 +1140,6 @@ class ChatWindow(QWidget):
         """流式接收"""
         if self._streaming_bubble is None:
             self._streaming_bubble = BubbleWidget("", is_user=False)
-            self._streaming_bubble.setMaximumWidth(BubbleWidget.MAX_WIDTH + 24)
             # 左对齐容器
             self._streaming_container = QWidget()
             layout = QHBoxLayout(self._streaming_container)
@@ -1164,7 +1177,6 @@ class ChatWindow(QWidget):
     def _append_user_message(self, text, scroll=True):
         """添加用户消息"""
         bubble = BubbleWidget(text, is_user=True)
-        bubble.setMaximumWidth(BubbleWidget.MAX_WIDTH + 24)
         # 右对齐
         container = QWidget()
         layout = QHBoxLayout(container)
@@ -1257,7 +1269,6 @@ class ChatWindow(QWidget):
     def _append_assistant_message(self, text, scroll=True):
         """添加 AI 消息"""
         bubble = BubbleWidget(text, is_user=False)
-        bubble.setMaximumWidth(BubbleWidget.MAX_WIDTH + 24)
         # 左对齐
         container = QWidget()
         layout = QHBoxLayout(container)
