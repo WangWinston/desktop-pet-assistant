@@ -40,11 +40,15 @@ class SettingsDialog(QDialog):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        # 现代化样式
+        # 现代化样式 - 确保 macOS 兼容性
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: #FAFAFA;
                 font-family: {FONT_FAMILY};
+            }}
+            QWidget {{
+                background-color: transparent;
+                color: #333;
             }}
             QLabel {{
                 color: #333;
@@ -83,11 +87,14 @@ class SettingsDialog(QDialog):
                 background: white;
                 font-size: 13px;
                 padding: 4px;
+                color: #333;
             }}
             QListWidget::item {{
                 padding: 6px 10px;
                 min-height: 22px;
                 border-radius: 4px;
+                color: #333;
+                background: transparent;
             }}
             QListWidget::item:selected {{
                 background: #FFF9E6;
@@ -101,6 +108,12 @@ class SettingsDialog(QDialog):
                 border-radius: 10px;
                 background: white;
                 margin-top: -1px;
+            }}
+            QTabWidget {{
+                background: transparent;
+            }}
+            QTabBar {{
+                background: transparent;
             }}
             QTabBar::tab {{
                 padding: 10px 24px;
@@ -126,6 +139,7 @@ class SettingsDialog(QDialog):
                 border-radius: 8px;
                 background: white;
                 font-size: 13px;
+                color: #333;
             }}
             QComboBox:focus {{
                 border: 2px solid #FFD93D;
@@ -134,10 +148,16 @@ class SettingsDialog(QDialog):
                 border: none;
                 width: 24px;
             }}
+            QComboBox QAbstractItemView {{
+                background: white;
+                color: #333;
+                selection-background-color: #FFF9E6;
+            }}
             QRadioButton {{
                 font-size: 13px;
                 color: #333;
                 spacing: 8px;
+                background: transparent;
             }}
             QRadioButton::indicator {{
                 width: 18px;
@@ -152,6 +172,69 @@ class SettingsDialog(QDialog):
                 background: white;
                 border: 2px solid #DDD;
                 border-radius: 9px;
+            }}
+            QCheckBox {{
+                font-size: 13px;
+                color: #333;
+                spacing: 8px;
+                background: transparent;
+            }}
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid #DDD;
+                background: white;
+            }}
+            QCheckBox::indicator:checked {{
+                background: #FFD93D;
+                border-color: #FFC107;
+            }}
+            QPushButton {{
+                padding: 10px 20px;
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+                background: white;
+                font-size: 13px;
+                color: #333;
+            }}
+            QPushButton:hover {{
+                background: #F5F5F5;
+                border-color: #DDD;
+            }}
+            QPushButton:pressed {{
+                background: #EBEBEB;
+            }}
+            QSpinBox {{
+                padding: 8px 12px;
+                border: 1px solid #E8E8E8;
+                border-radius: 8px;
+                background: white;
+                font-size: 13px;
+                color: #333;
+            }}
+            QSpinBox:focus {{
+                border: 2px solid #FFD93D;
+            }}
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background: #F5F5F5;
+                width: 10px;
+                border-radius: 5px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: #DDD;
+                border-radius: 5px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: #CCC;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0;
             }}
         """)
 

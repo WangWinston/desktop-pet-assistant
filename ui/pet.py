@@ -611,20 +611,28 @@ class DesktopPet(QWidget):
     def contextMenuEvent(self, event):
         """右键菜单"""
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
+        menu.setStyleSheet(f"""
+            QMenu {{
                 background-color: white;
                 border: 1px solid #E0E0E0;
                 border-radius: 6px;
                 padding: 4px;
-            }
-            QMenu::item {
+                font-family: {FONT_FAMILY};
+                font-size: 13px;
+            }}
+            QMenu::item {{
                 padding: 6px 24px;
                 border-radius: 4px;
-            }
-            QMenu::item:selected {
+                color: #333;
+                background-color: transparent;
+            }}
+            QMenu::item:selected {{
                 background-color: #FFF9E6;
-            }
+                color: #333;
+            }}
+            QMenu::item:disabled {{
+                color: #999;
+            }}
         """)
 
         hide_action = menu.addAction("隐藏")
