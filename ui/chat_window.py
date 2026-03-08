@@ -1,4 +1,5 @@
 """聊天窗口模块 - 精致圆角气泡对话框设计"""
+import os
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF, QTime
@@ -11,6 +12,7 @@ from PyQt5.QtGui import (
     QPen,
     QBrush,
     QTextOption,
+    QIcon,
 )
 from PyQt5.QtWidgets import (
     QApplication,
@@ -407,6 +409,11 @@ class TodoDialog(QDialog):
         self.setMinimumWidth(360)
         self.setMinimumHeight(200)
 
+        # 设置窗口图标
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         # 应用与项目一致的主题样式
         self.setStyleSheet(f"""
             QDialog {{
@@ -675,6 +682,11 @@ class ChatWindow(QWidget):
         self.setFixedSize(self.window_width, self.window_height)
         # 使用无边框置顶窗口，但不再启用整窗透明，以提升性能和稳定性
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+
+        # 设置窗口图标
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self._drag_pos = None
         self._worker = None

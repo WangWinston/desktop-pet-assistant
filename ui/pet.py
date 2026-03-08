@@ -212,6 +212,11 @@ class DesktopPet(QWidget):
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
+        # 设置任务栏图标
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
     def _init_tray(self):
         """初始化系统托盘"""
         icon_path = "assets/icon.png"

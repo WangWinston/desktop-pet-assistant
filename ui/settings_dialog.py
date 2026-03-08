@@ -1,6 +1,7 @@
 """设置对话框模块 - 修复所有问题"""
 import os
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QCheckBox, QComboBox, QFileDialog, QDialog, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QMessageBox, QPushButton,
@@ -20,6 +21,11 @@ class SettingsDialog(QDialog):
         self.setMinimumSize(440, 500)
         self.resize(440, 560)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        # 设置窗口图标
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # 现代化样式
         self.setStyleSheet("""

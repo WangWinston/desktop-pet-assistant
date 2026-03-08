@@ -1,13 +1,16 @@
 # 桌面宠物 - 皮卡丘
 
-一只可爱的桌面宠物，基于 PyQt5 构建，支持 AI 对话功能。
+一只可爱的桌面宠物，基于 PyQt5 构建，支持 AI 对话、技能调用和 MCP 协议。
 
 ## 功能特性
 
 - **桌面宠物展示** - 可爱的皮卡丘动画，支持拖拽移动
 - **AI 对话** - 接入 OpenAI 兼容 API，支持智能对话
-- **用户画像** - 多维度记录用户特征，提供个性化服务
+- **Agent 模式** - 基于 LangChain 的智能代理，支持工具调用
 - **技能系统** - 可扩展的技能模块，支持动态加载
+- **MCP 协议** - 支持 Model Context Protocol，扩展外部工具能力
+- **用户画像** - 多维度记录用户特征，提供个性化服务
+- **待办提醒** - 内置待办事项管理，定时提醒
 - **休息提醒** - 定时提醒用户休息，保护健康
 
 ## 快速开始
@@ -49,19 +52,34 @@ python main.py
 ```
 ├── main.py              # 主入口
 ├── config.yaml          # 配置文件
+├── config_example.yaml  # 配置模板
 ├── requirements.txt     # 依赖列表
-├── core/
+├── core/                # 核心功能模块
+│   ├── __init__.py
 │   ├── persona.py       # 人设和用户画像管理
-│   ├── chat.py          # AI 对话核心
+│   ├── chat.py          # AI 对话服务
 │   ├── memory.py        # 上下文记忆
-│   └── compressor.py    # 消息压缩
-├── ui/
+│   ├── compressor.py    # 消息压缩
+│   ├── agent.py         # LangChain Agent 实现
+│   ├── agent_chat.py    # Agent 聊天适配器
+│   ├── skill_tool.py    # 技能工具链
+│   ├── mcp_config.py    # MCP 配置管理
+│   ├── mcp_client.py    # MCP 客户端
+│   └── mcp_tools.py     # MCP 工具包装
+├── ui/                  # 用户界面模块
+│   ├── __init__.py
 │   ├── pet.py           # 宠物窗口
 │   ├── chat_window.py   # 聊天窗口
 │   └── settings_dialog.py # 设置对话框
+├── utils/               # 工具模块
+│   ├── __init__.py
+│   ├── logger.py        # 日志配置
+│   ├── config_loader.py # 配置加载器
+│   └── todo_storage.py  # 待办事项存储
+├── data/                # 数据目录
+│   ├── chat_history.json # 聊天历史
+│   └── todos.json       # 待办事项
 ├── skills/              # 技能模块目录
-│   └── weather/         # 天气查询示例
-│       └── SKILL.md     # 技能定义文件
 └── assets/              # 静态资源
     ├── pikaqiu/         # 皮卡丘动画
     └── click/           # 点击动画
@@ -85,7 +103,18 @@ python main.py
 
 基于 Agent Skill 规范，使用 `SKILL.md` 文件定义技能。
 
-### 添加新技能
+### 技能加载
+
+系统支持链式加载技能：
+
+```python
+from core import SkillLoader
+
+skills = (SkillLoader()
+    .from_directory("skills")
+    .filter(lambda s: s.get("enabled", True))
+    .build())
+```
 
 1. 在 `skills/` 目录下创建新文件夹，如 `skills/my-skill/`
 2. 创建 `SKILL.md` 文件：
@@ -135,9 +164,75 @@ skills:
   directory: "skills"
 ```
 
-### 技能加载
+## Agent 模式
 
-系统启动时自动加载 skills 目录中的技能，将技能名称和描述注入系统提示，AI 可根据用户问题动态引用相关技能。
+Agent 模式基于 LangChain 实现，支持工具调用和技能执行。
+
+### 启用 Agent 模式
+
+```yaml
+agent:
+  enabled: true
+```
+
+### 内置工具
+
+Agent 默认提供以下内置工具：
+
+| 工具名称 | 功能说明 |
+|---------|---------|
+| read_file | 读取文件内容 |
+| write_file | 写入文件内容 |
+| execute_command | 执行命令行指令 |
+
+### 扩展 Agent
+
+```python
+from core import PetAgent, AgentConfig
+
+agent = PetAgent(
+    config=AgentConfig(
+        api_key="your-api-key",
+        base_url="https://api.openai.com/v1",
+        model="gpt-4o-mini"
+    ),
+    name="皮卡丘",
+    system_prompt="你是一个可爱的桌面宠物"
+)
+
+# 加载技能
+agent.load_skills(skills)
+
+# 加载 MCP 工具
+agent.load_mcp_tools()
+```
+
+## MCP 协议
+
+支持 Model Context Protocol (MCP)，可连接外部工具服务。
+
+### 启用 MCP
+
+```yaml
+mcp:
+  enabled: true
+  servers:
+    - name: filesystem
+      transport: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+      enabled: true
+```
+
+### 预定义服务器
+
+| 服务器名称 | 功能说明 |
+|-----------|---------|
+| filesystem | 文件系统访问 |
+| brave-search | Brave 搜索 |
+| memory | 记忆存储 |
+| github | GitHub 集成 |
+| fetch | HTTP 请求 |
 
 ## 配置说明
 
@@ -173,6 +268,25 @@ skills:
   enabled: true
   directory: "skills"
 
+# Agent 配置
+agent:
+  enabled: true  # 启用 Agent 模式
+
+# MCP 配置
+mcp:
+  enabled: false
+  servers: []
+
+# 待办提醒
+todo_reminder:
+  enabled: true
+
+# 休息提醒
+rest_reminder:
+  enabled: false
+  interval: 3600  # 秒
+  message: "该休息啦！"
+
 # UI 配置
 ui:
   pet_size: 100            # 宠物尺寸
@@ -184,9 +298,14 @@ ui:
 - **拖拽移动** - 按住宠物拖拽到任意位置
 - **右键菜单** - 右键点击宠物打开菜单
   - 聊天 - 打开聊天窗口
-  - 设置 - 打开设置对话框
+  - 休息提醒 - 开关休息提醒
+  - 隐藏 - 隐藏宠物窗口
   - 退出 - 关闭程序
-- **聊天窗口** - 点击设置按钮⚙打开设置，点击关闭按钮✕隐藏窗口
+- **聊天窗口**
+  - 输入消息与 AI 对话
+  - 点击待办标签页管理待办事项
+  - 点击设置按钮打开设置对话框
+- **系统托盘** - 最小化到系统托盘，右键显示菜单
 
 ## 开发
 
@@ -195,8 +314,19 @@ ui:
 项目采用模块化设计，易于扩展：
 
 1. **添加新状态** - 在 `config.yaml` 的 `states` 中配置
-2. **添加新技能** - 在 `skills/` 目录下创建新模块
-3. **自定义人设** - 修改 `core/persona.py` 中的常量
+2. **添加新技能** - 在 `skills/` 目录下创建 SKILL.md 文件
+3. **添加 MCP 服务器** - 在 `config.yaml` 的 `mcp.servers` 中配置
+4. **自定义人设** - 修改配置文件中的 `persona` 部分
+
+### 核心模块说明
+
+| 模块 | 说明 |
+|------|------|
+| core/chat.py | OpenAI API 调用封装 |
+| core/agent.py | LangChain Agent 实现 |
+| core/persona.py | 人设和用户画像管理 |
+| core/memory.py | 对话历史管理 |
+| core/mcp_client.py | MCP 客户端连接 |
 
 ### 代码风格
 
