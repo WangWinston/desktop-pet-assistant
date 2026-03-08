@@ -3,7 +3,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF, QTime
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF, QPoint, QTime
 from PyQt5.QtGui import (
     QPainter,
     QColor,
@@ -750,7 +750,9 @@ class ChatWindow(QWidget):
         if self._skills_popup is not None:
             return
 
-        self._skills_popup = QListWidget(self.container)
+        # 创建独立的 Popup 窗口（无父控件，解决 macOS 兼容性问题）
+        self._skills_popup = QListWidget()
+        self._skills_popup.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
         self._skills_popup.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self._skills_popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._skills_popup.setFocusPolicy(Qt.NoFocus)
@@ -841,21 +843,24 @@ class ChatWindow(QWidget):
             item.setData(Qt.UserRole, display_name)
             self._skills_popup.addItem(item)
 
-        # 计算弹窗位置：对齐输入框上方
+        # 计算弹窗位置：使用全局坐标定位（解决 macOS 兼容性问题）
         bar_geo = self.input_bar.geometry()
         input_geo = self.message_input.geometry()
 
         popup_width = input_geo.width()
         popup_height = min(180, 30 + 26 * len(matched_items))
 
-        x = bar_geo.x() + input_geo.x()
-        y = bar_geo.y() - popup_height - 6
+        # 转换为全局坐标
+        global_pos = self.mapToGlobal(QPoint(bar_geo.x() + input_geo.x(), bar_geo.y()))
+
+        x = global_pos.x()
+        y = global_pos.y() - popup_height - 6
         if y < 0:
-            y = 0
+            # 如果上方空间不足，显示在输入框下方
+            y = global_pos.y() + input_geo.height() + 6
 
         self._skills_popup.setGeometry(x, y, popup_width, popup_height)
         self._skills_popup.show()
-        self._skills_popup.raise_()
 
     def _on_skill_item_activated(self, item: QListWidgetItem):
         """选择某个技能后，将其填充到输入框中"""
