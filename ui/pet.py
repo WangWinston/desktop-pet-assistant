@@ -730,7 +730,8 @@ class DesktopPet(QWidget):
         api_config = self.config.get("api", {})
         worker = ProfileAnalyzeWorker(self.persona_manager, messages, api_config)
         worker.finished.connect(self._on_analyze_done)
-        worker.run()
+        # 延迟执行，让用户先看到提示
+        QTimer.singleShot(1500, lambda: (self.hide(), worker.run()))
 
     def _on_analyze_done(self, profile: dict):
         """分析完成"""

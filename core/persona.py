@@ -380,27 +380,16 @@ class PersonaManager:
         persona_config = config.get("persona", {})
         self.name = persona_config.get("name", DEFAULT_NAME)
 
-        # 兼容旧配置: 优先使用 duties 构建，若无则使用 system_prompt
-        if "duties" in persona_config:
-            self.system_prompt = build_system_prompt(persona_config["duties"])
-        elif "system_prompt" in persona_config:
-            self.system_prompt = persona_config["system_prompt"]
-        else:
-            self.system_prompt = build_system_prompt("")
+        # 构建系统提示词
+        duties = persona_config.get("duties", "")
+        self.system_prompt = build_system_prompt(duties)
 
         # 用户画像（多维度）
-        self.user_profile: Dict[str, str] = {}
-        # 兼容旧配置
-        old_preferences = persona_config.get("user_preferences", [])
-        if isinstance(old_preferences, list) and old_preferences:
-            # 将旧列表转换为描述字段
-            self.user_profile["daily_details"] = "\n".join(f"- {p}" for p in old_preferences)
-        elif "user_profile" in persona_config:
-            self.user_profile = persona_config.get("user_profile", {})
-            # 确保所有维度都存在
-            for dim in USER_PROFILE_DIMENSIONS:
-                if dim not in self.user_profile:
-                    self.user_profile[dim] = ""
+        self.user_profile: Dict[str, str] = persona_config.get("user_profile", {})
+        # 确保所有维度都存在
+        for dim in USER_PROFILE_DIMENSIONS:
+            if dim not in self.user_profile:
+                self.user_profile[dim] = ""
 
         # Skills 配置
         self.skills_dir = config.get("skills", {}).get("directory", "skills")
@@ -572,18 +561,6 @@ class PersonaManager:
             "user_profile": self.user_profile.copy(),
         }
 
-    def to_dict(self) -> dict:
-        """导出为字典"""
-        return {
-            "name": self.name,
-            "system_prompt": self.system_prompt,
-            "user_profile": self.user_profile.copy(),
-            "skills": {
-                "directory": self.skills_dir,
-                "enabled": self.skills_enabled,
-            },
-        }
-
     def analyze_user_profile(self, messages: List[dict], api_config: dict) -> Dict[str, str]:
         """
         分析聊天记录生成用户画像
@@ -635,7 +612,10 @@ class PersonaManager:
             )
             response = client.chat.completions.create(
                 model=api_config.get("model", "gpt-4o-mini"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    self.get_system_message(),
+                    {"role": "user", "content": prompt},
+                ],
                 max_tokens=1000,
                 temperature=0.3,
             )

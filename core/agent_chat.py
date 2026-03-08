@@ -179,7 +179,7 @@ class AgentChatFactory:
         agent = PetAgent(
             config=agent_config,
             name=persona_manager.name,
-            system_prompt=persona_manager.system_prompt
+            system_prompt=persona_manager.get_system_message()["content"]
         )
         
         # 链式加载技能
@@ -227,7 +227,7 @@ class AgentChatFactory:
         agent = PetAgent(
             config=agent_config,
             name=persona_manager.name,
-            system_prompt=persona_manager.system_prompt
+            system_prompt=persona_manager.get_system_message()["content"]
         )
         
         # 链式加载技能（带处理器）

@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -c \"from ui.chat_window import BubbleWidget; print\\(''Import OK''\\)\")"
-    ]
-  }
-}
