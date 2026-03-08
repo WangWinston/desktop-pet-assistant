@@ -26,6 +26,81 @@ def get_system_font_family():
 FONT_FAMILY = get_system_font_family()
 
 
+class InfoDialog(QDialog):
+    """自定义提示对话框 - 跨平台一致的视觉效果"""
+
+    # 设计系统颜色常量
+    PRIMARY = "#5B8DEF"
+    PRIMARY_HOVER = "#4A7FE0"
+    TEXT_PRIMARY = "#1E293B"
+    TEXT_SECONDARY = "#64748B"
+    BG_MAIN = "#FFFFFF"
+    BORDER = "#E2E8F0"
+
+    def __init__(self, title: str, message: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setFixedSize(320, 140)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        # 设置窗口图标
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {self.BG_MAIN};
+                border-radius: 12px;
+            }}
+            QLabel {{
+                color: {self.TEXT_PRIMARY};
+                font-family: {FONT_FAMILY};
+                font-size: 14px;
+                background: transparent;
+            }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 20)
+
+        # 消息文本
+        msg_label = QLabel(message)
+        msg_label.setWordWrap(True)
+        msg_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(msg_label)
+
+        layout.addStretch()
+
+        # 确认按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        ok_btn = QPushButton("确定")
+        ok_btn.setFixedSize(80, 32)
+        ok_btn.setCursor(Qt.PointingHandCursor)
+        ok_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.PRIMARY};
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-family: {FONT_FAMILY};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {self.PRIMARY_HOVER};
+            }}
+        """)
+        ok_btn.clicked.connect(self.accept)
+
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+
 class SettingsDialog(QDialog):
     def __init__(self, config: dict, parent=None):
         super().__init__(parent)
@@ -936,7 +1011,7 @@ class SettingsDialog(QDialog):
 
         # API 配置变更提示重启
         if api_changed:
-            QMessageBox.information(self, "提示", "API 配置已更新，重启应用后生效")
+            InfoDialog("提示", "API 配置已更新，重启应用后生效", self).exec_()
 
         self.accept()
 
