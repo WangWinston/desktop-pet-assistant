@@ -54,7 +54,7 @@ class ConfigLoader:
                 "duties": DEFAULT_DUTIES,
                 "user_profile": {},
             },
-            "ui": {"pet_size": 180, "dialog_interval": 5000},
+            "ui": {"pet_size": 180},
             "history": {"auto_save": True, "file": "data/chat_history.json"},
         }
 

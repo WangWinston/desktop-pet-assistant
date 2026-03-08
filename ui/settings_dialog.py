@@ -2,13 +2,14 @@
 import os
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QInputDialog, QDialog, QHBoxLayout,
+    QCheckBox, QComboBox, QFileDialog, QDialog, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QMessageBox, QPushButton,
     QPlainTextEdit, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
     QButtonGroup, QRadioButton, QScrollArea, QAbstractItemView,
     QDialogButtonBox, QFormLayout,
 )
 from utils.config_loader import ConfigLoader
+from utils.todo_storage import TodoStorage
 
 
 class SettingsDialog(QDialog):
@@ -440,14 +441,17 @@ class SettingsDialog(QDialog):
             }
         """)
         
-        # 加载待办事项
-        todos = todo_config.get("todos", [])
+        # 加载待办事项（从文件中获取）
+        todos = TodoStorage.load_todos()
         for todo in todos:
             content = todo.get("content", "")
             time = todo.get("time", "")
             done = todo.get("done", False)
             item_text = f"[{'✓' if done else '○'}] {content} @ {time}"
             self.todo_list.addItem(item_text)
+
+        # 连接选择变化信号，更新按钮文字
+        self.todo_list.itemSelectionChanged.connect(self._update_complete_btn_text)
         state_layout.addWidget(self.todo_list)
 
         # 待办操作按钮
@@ -486,6 +490,23 @@ class SettingsDialog(QDialog):
         """)
         del_todo_btn.clicked.connect(self._delete_todo)
         todo_btn_layout.addWidget(del_todo_btn)
+
+        self.complete_todo_btn = QPushButton("完成")
+        self.complete_todo_btn.setFixedHeight(28)
+        self.complete_todo_btn.setCursor(Qt.PointingHandCursor)
+        self.complete_todo_btn.setStyleSheet("""
+            QPushButton {
+                background: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                padding: 0 12px;
+            }
+            QPushButton:hover { background: #1976D2; }
+        """)
+        self.complete_todo_btn.clicked.connect(self._complete_todo)
+        todo_btn_layout.addWidget(self.complete_todo_btn)
         
         todo_btn_layout.addStretch()
         state_layout.addLayout(todo_btn_layout)
@@ -779,7 +800,7 @@ class SettingsDialog(QDialog):
         # 保存提醒内容（单条）
         self.config["rest_reminder"]["message"] = self.rest_message_input.text().strip() or "⏰ 该休息啦！"
 
-        # 保存待办提醒配置
+        # 保存待办提醒配置（待办列表写入独立文件）
         self.config.setdefault("todo_reminder", {})
         self.config["todo_reminder"]["enabled"] = True
         
@@ -795,7 +816,11 @@ class SettingsDialog(QDialog):
                 content = match.group(2).strip()
                 time = match.group(3).strip()
                 todos.append({"content": content, "time": time, "done": done})
-        self.config["todo_reminder"]["todos"] = todos
+
+        # 待办只写入 data/todos.json，不再保存在 config.yaml 中
+        TodoStorage.save_todos(todos)
+        if "todos" in self.config["todo_reminder"]:
+            self.config["todo_reminder"].pop("todos", None)
 
         # 保存技能配置
         self.config.setdefault("skills", {})
@@ -1040,22 +1065,68 @@ class SettingsDialog(QDialog):
 
     def _add_todo(self):
         """添加待办事项"""
-        # 输入待办内容
-        content, ok = QInputDialog.getText(self, "添加待办", "待办内容:")
-        if not ok or not content.strip():
-            return
-        
-        # 输入提醒时间
-        time, ok = QInputDialog.getText(self, "设置时间", "提醒时间 (如 14:30):", text="09:00")
-        if not ok or not time.strip():
-            return
-        
-        # 添加到列表
-        item_text = f"[○] {content.strip()} @ {time.strip()}"
-        self.todo_list.addItem(item_text)
+        from ui.chat_window import TodoDialog
+
+        dialog = TodoDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            content, time_str = dialog.get_todo()
+            if content and time_str:
+                item_text = f"[○] {content} @ {time_str}"
+                self.todo_list.addItem(item_text)
     
     def _delete_todo(self):
         """删除选中的待办事项"""
         current_row = self.todo_list.currentRow()
         if current_row >= 0:
             self.todo_list.takeItem(current_row)
+            # 删除后更新按钮文字
+            self._update_complete_btn_text()
+
+    def _update_complete_btn_text(self):
+        """根据选中待办的状态更新按钮文字"""
+        current_row = self.todo_list.currentRow()
+        if current_row < 0:
+            self.complete_todo_btn.setText("完成")
+            return
+
+        item = self.todo_list.item(current_row)
+        if not item:
+            self.complete_todo_btn.setText("完成")
+            return
+
+        text = item.text()
+        # 检查是否已完成（以 [✓] 开头）
+        is_done = text.strip().startswith('[✓]')
+        if is_done:
+            self.complete_todo_btn.setText("撤销完成")
+        else:
+            self.complete_todo_btn.setText("完成")
+
+    def _complete_todo(self):
+        """完成/取消完成选中的待办事项"""
+        current_row = self.todo_list.currentRow()
+        if current_row < 0:
+            return
+
+        item = self.todo_list.item(current_row)
+        if not item:
+            return
+
+        text = item.text()
+        import re
+        # 解析格式: [✓/○] 内容 @ 时间
+        match = re.match(r'\[(\W)\]\s*(.+)\s*@\s*(.+)', text)
+        if not match:
+            return
+
+        status = match.group(1)
+        content = match.group(2).strip()
+        time = match.group(3).strip()
+
+        # 切换状态
+        is_done = (status == '✓')
+        new_status = '✓' if not is_done else '○'
+        new_text = f"[{new_status}] {content} @ {time}"
+        item.setText(new_text)
+        # 更新按钮文字
+        self._update_complete_btn_text()

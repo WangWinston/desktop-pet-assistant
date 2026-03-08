@@ -177,7 +177,6 @@ skills:
 ui:
   pet_size: 100            # 宠物尺寸
   chat_window_size: "medium"  # 聊天窗口尺寸
-  dialog_interval: 5000    # 对话间隔
 ```
 
 ## 操作说明

@@ -1,7 +1,7 @@
 """聊天窗口模块 - 精致圆角气泡对话框设计"""
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer, QSize, QPointF, QTime
 from PyQt5.QtGui import (
     QPainter,
     QColor,
@@ -26,7 +26,13 @@ from PyQt5.QtWidgets import (
     QTextBrowser,
     QListWidget,
     QListWidgetItem,
+    QDialog,
+    QTimeEdit,
+    QMessageBox,
 )
+
+from utils.todo_storage import TodoStorage
+import markdown
 
 if TYPE_CHECKING:
     from core.chat import ChatService
@@ -224,21 +230,43 @@ class BubbleWidget(QWidget):
 
     def _update_text(self):
         """更新文本内容"""
+        max_content_width = max(0, self.MAX_WIDTH - 28)  # 减去左右内边距
+
         if self.is_user:
             self.text_browser.setPlainText(self.text)
         else:
-            self.text_browser.setMarkdown(self.text)
+            # 使用 markdown 库转换为 HTML，支持完整 Markdown 功能
+            html = markdown.markdown(
+                self.text,
+                extensions=['tables', 'fenced_code', 'toc', 'nl2br']
+            )
+            self.text_browser.setHtml(html)
 
-        # 计算宽高，限制在 MAX_WIDTH 内部，避免气泡内容水平溢出
+        # 使用 QFontMetrics 计算文本实际宽度（解决中文宽度计算问题）
+        font = self.text_browser.font()
+        font_metrics = QFontMetrics(font)
+
+        # 计算每行文本的宽度，取最大值
+        lines = self.text.split('\n')
+        max_line_width = 0
+        for line in lines:
+            line_width = font_metrics.horizontalAdvance(line)
+            max_line_width = max(max_line_width, line_width)
+
+        # 实际宽度 = 文本宽度 + 额外边距（代码块、列表等需要更多空间）
+        text_width = max_line_width + 40
+        actual_content_width = min(text_width, max_content_width)
+        actual_content_width = max(actual_content_width, 50)  # 最小宽度
+
+        # 设置文档宽度并计算高度
         doc = self.text_browser.document()
-        content_width = max(0, self.MAX_WIDTH - 28)  # 减去左右内边距
-        doc.setTextWidth(content_width)
+        doc.setTextWidth(actual_content_width)
         height = doc.size().height()
 
-        self.text_browser.setFixedWidth(content_width)
+        self.text_browser.setFixedWidth(int(actual_content_width))
         self.text_browser.setFixedHeight(int(max(height, 24)))
         # 气泡整体宽度 = 内容宽度 + 左右内边距
-        self.setFixedWidth(self.MAX_WIDTH)
+        self.setFixedWidth(int(actual_content_width + 28))
         self.setFixedHeight(int(height + 20))
 
     def set_text(self, text: str):
@@ -346,6 +374,197 @@ class SystemMessageWidget(QWidget):
         painter.setFont(font)
         painter.setPen(QColor(text_color))
         painter.drawText(path.boundingRect(), Qt.AlignCenter, self.text)
+
+
+class TodoDialog(QDialog):
+    """添加待办事项弹窗"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._content = ""
+        self._time_str = ""
+        self._init_ui()
+
+    def _init_ui(self):
+        self.setWindowTitle("添加待办事项")
+        # 仅保留关闭按钮，去掉帮助按钮
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setModal(True)
+        self.setMinimumWidth(360)
+        self.setMinimumHeight(200)
+
+        # 应用与项目一致的主题样式
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {Theme.BG_MAIN};
+                border-radius: 16px;
+            }}
+            QLabel {{
+                font-family: 'Microsoft YaHei UI', sans-serif;
+                background: transparent;
+            }}
+            QLineEdit {{
+                padding: 12px 16px;
+                border: 1px solid {Theme.BORDER};
+                border-radius: 10px;
+                background: {Theme.BG_CHAT};
+                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-size: 14px;
+                color: {Theme.TEXT_PRIMARY};
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {Theme.PRIMARY};
+                padding: 11px 15px;
+            }}
+            QLineEdit::placeholder {{
+                color: {Theme.TEXT_PLACEHOLDER};
+            }}
+            QTimeEdit {{
+                padding: 12px 16px;
+                border: 1px solid {Theme.BORDER};
+                border-radius: 10px;
+                background: {Theme.BG_CHAT};
+                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-size: 14px;
+                color: {Theme.TEXT_PRIMARY};
+                min-height: 20px;
+            }}
+            QTimeEdit:focus {{
+                border: 2px solid {Theme.PRIMARY};
+            }}
+            QTimeEdit::drop-down {{
+                border: none;
+                width: 0px;
+                subcontrol-position: right center;
+            }}
+            QTimeEdit::down-arrow {{
+                image: none;
+                width: 0px;
+            }}
+            QTimeEdit::up-button {{
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 0px;
+                border: none;
+                background: transparent;
+            }}
+            QTimeEdit::down-button {{
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 0px;
+                border: none;
+                background: transparent;
+            }}
+            QTimeEdit QSpinBox {{
+                background: transparent;
+                border: none;
+            }}
+            QPushButton {{
+                padding: 12px 24px;
+                border: none;
+                border-radius: 10px;
+                font-family: 'Microsoft YaHei UI', sans-serif;
+                font-size: 14px;
+                font-weight: 500;
+            }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setSpacing(16)
+
+        # 标题
+        title_label = QLabel("新增待办")
+        title_label.setStyleSheet(f"""
+            font-size: 16px;
+            font-weight: 600;
+            color: {Theme.TEXT_PRIMARY};
+        """)
+        layout.addWidget(title_label)
+
+        # 内容输入
+        self.content_input = QLineEdit()
+        self.content_input.setPlaceholderText("请输入待办内容")
+        layout.addWidget(self.content_input)
+
+        # 时间选择行
+        time_row = QWidget()
+        time_layout = QHBoxLayout(time_row)
+        time_layout.setContentsMargins(0, 0, 0, 0)
+        time_layout.setSpacing(12)
+
+        time_label = QLabel("提醒时间")
+        time_label.setStyleSheet(f"color: {Theme.TEXT_SECONDARY}; font-size: 13px;")
+        time_label.setFixedWidth(70)
+        time_layout.addWidget(time_label)
+
+        self.time_edit = QTimeEdit()
+        self.time_edit.setDisplayFormat("HH:mm")
+        # 默认设为下一个整点
+        from datetime import datetime, timedelta
+        current = datetime.now()
+        next_hour = (current + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        default_time = QTime.fromString(next_hour.strftime("%H:%M"), "HH:mm")
+        if default_time.isValid():
+            self.time_edit.setTime(default_time)
+        time_layout.addWidget(self.time_edit)
+        time_layout.addStretch()
+
+        layout.addWidget(time_row)
+
+        # 按钮行
+        btn_row = QWidget()
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.setContentsMargins(0, 8, 0, 0)
+        btn_layout.setSpacing(12)
+
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {Theme.BG_INPUT};
+                color: {Theme.TEXT_SECONDARY};
+            }}
+            QPushButton:hover {{
+                background: {Theme.BORDER};
+            }}
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+
+        save_btn = QPushButton("保存")
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {Theme.PRIMARY};
+                color: {Theme.TEXT_ON_PRIMARY};
+            }}
+            QPushButton:hover {{
+                background: {Theme.PRIMARY_HOVER};
+            }}
+        """)
+        save_btn.clicked.connect(self._on_save)
+        btn_layout.addWidget(save_btn)
+
+        layout.addWidget(btn_row)
+
+    def _on_save(self):
+        content = self.content_input.text().strip()
+        if not content:
+            QMessageBox.warning(self, "提示", "请输入待办内容")
+            return
+
+        time_str = self.time_edit.time().toString("HH:mm")
+        if not time_str:
+            QMessageBox.warning(self, "提示", "请选择提醒时间")
+            return
+
+        self._content = content
+        self._time_str = time_str
+        self.accept()
+
+    def get_todo(self):
+        return self._content, self._time_str
 
 
 class ChatWorker(QThread):
@@ -874,7 +1093,12 @@ class ChatWindow(QWidget):
             return
 
         # 检查是否是 /todo 命令
+        if text == "/todo":
+            self.message_input.clear()
+            self._open_todo_dialog()
+            return
         if text.startswith("/todo "):
+            self.message_input.clear()
             self._handle_todo_command(text[6:].strip())
             return
 
@@ -951,86 +1175,84 @@ class ChatWindow(QWidget):
         if scroll:
             QTimer.singleShot(10, self._scroll_to_bottom)
 
-    def _handle_todo_command(self, text: str):
-        """处理 /todo 命令创建待办 - 通过 Agent 的 write_file 工具写入配置"""
+    def _open_todo_dialog(self):
+        """打开新增待办弹窗"""
+        dialog = TodoDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            content, time_str = dialog.get_todo()
+            if content and time_str:
+                self._save_todo(content, time_str)
+
+    def _parse_todo_text(self, text: str):
+        """解析 /todo 命令文本，返回 (content, time_str)"""
         import re
-        import traceback
-        from utils.config_loader import ConfigLoader
-        
+        from datetime import datetime, timedelta
+
+        # 支持 "内容 @ 时间" 或 "内容@时间" 或 "内容 时间"
+        match = re.match(r'^(.+?)\s*@\s*(\d{1,2}:\d{2})$', text)
+        if match:
+            content = match.group(1).strip()
+            time_str = match.group(2).strip()
+            return content, time_str
+
+        match2 = re.match(r'^(.+?)\s+(\d{1,2}:\d{2})$', text)
+        if match2:
+            content = match2.group(1).strip()
+            time_str = match2.group(2).strip()
+            return content, time_str
+
+        content = text.strip()
+        if not content:
+            return "", ""
+
+        # 默认时间设为当前时间的下一个整点
+        current = datetime.now()
+        next_hour = (current + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        time_str = next_hour.strftime("%H:%M")
+        return content, time_str
+
+    def _handle_todo_command(self, text: str):
+        """处理 /todo 文本命令"""
         try:
-            # 解析格式: 支持 "内容 @ 时间" 或 "内容@时间" 或 "内容 时间"
-            match = re.match(r'^(.+?)\s*@\s*(\d{1,2}:\d{2})$', text)
-            
-            if match:
-                content = match.group(1).strip()
-                time = match.group(2).strip()
-            else:
-                # 尝试查找末尾的时间（空格分隔）
-                match2 = re.match(r'^(.+?)\s+(\d{1,2}:\d{2})$', text)
-                if match2:
-                    content = match2.group(1).strip()
-                    time = match2.group(2).strip()
-                else:
-                    content = text.strip()
-                    # 默认时间设为当前时间的下一个整点
-                    from datetime import datetime, timedelta
-                    current = datetime.now()
-                    next_hour = (current + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-                    time = next_hour.strftime("%H:%M")
-            
+            content, time_str = self._parse_todo_text(text)
             if not content:
                 self._append_assistant_message("❌ 请输入待办内容\n格式：/todo 开会@10:00 或 /todo 开会 @ 10:00")
                 return
-            
-            # 加载现有配置
-            config = ConfigLoader.load()
-            config.setdefault("todo_reminder", {})
-            config["todo_reminder"].setdefault("enabled", True)
-            config["todo_reminder"].setdefault("todos", [])
-            
-            # 检查是否已存在
-            for todo in config["todo_reminder"].get("todos", []):
-                if todo.get("content") == content and todo.get("time") == time:
-                    self._append_assistant_message(f"⚠️ 待办已存在: {content} @ {time}")
-                    return
-            
-            # 添加待办
-            config["todo_reminder"]["todos"].append({
-                "content": content,
-                "time": time,
-                "done": False
-            })
-            
-            # 生成 YAML 格式的配置内容
-            import yaml
-            import os
-            
-            # 读取现有配置文件，保留其他配置
-            config_path = os.path.abspath("config.yaml")
-            
-            # 将更新后的配置写入文件
-            with open(config_path, "w", encoding="utf-8") as f:
-                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
-            
-            # 刷新当前窗口的配置（通知宠物更新）
-            if hasattr(self, '_pet') and self._pet:
-                self._pet._todo_config = config.get("todo_reminder", {})
-                # 如果宠物有打开的设置窗口，也刷新它
-                if hasattr(self._pet, '_settings_dialog') and self._pet._settings_dialog:
-                    settings = self._pet._settings_dialog
-                    if hasattr(settings, 'todo_list'):
-                        settings.todo_list.clear()
-                        for todo in config.get("todo_reminder", {}).get("todos", []):
-                            t_content = todo.get("content", "")
-                            t_time = todo.get("time", "")
-                            done = todo.get("done", False)
-                            item_text = f"[{'✓' if done else '○'}] {t_content} @ {t_time}"
-                            settings.todo_list.addItem(item_text)
-            
-            self._append_assistant_message(f"✅ 待办已添加: {content} @ {time}\n将在 {time} 提醒你")
+
+            self._save_todo(content, time_str)
         except Exception as e:
-            error_msg = f"❌ 添加失败: {str(e)}\n{traceback.format_exc()}"
+            import traceback
+
+            error_msg = f"❌ 添加失败: {str(e)}\\n{traceback.format_exc()}"
             self._append_assistant_message(error_msg)
+
+    def _save_todo(self, content: str, time_str: str):
+        """保存待办到文件，并刷新宠物与设置窗口"""
+        # 先加载当前列表以判断是否重复
+        before = TodoStorage.load_todos()
+        todos = TodoStorage.add_todo(content, time_str)
+        if len(todos) == len(before):
+            self._append_assistant_message(f"⚠️ 待办已存在: {content} @ {time_str}")
+            return
+
+        # 刷新宠物中的待办配置
+        if hasattr(self, "_pet") and self._pet:
+            if hasattr(self._pet, "refresh_todo_config"):
+                self._pet.refresh_todo_config()
+
+            # 如果宠物有打开的设置窗口，也刷新它
+            if hasattr(self._pet, "_settings_dialog") and self._pet._settings_dialog:
+                settings = self._pet._settings_dialog
+                if hasattr(settings, "todo_list"):
+                    settings.todo_list.clear()
+                    for todo in todos:
+                        t_content = todo.get("content", "")
+                        t_time = todo.get("time", "")
+                        done = todo.get("done", False)
+                        item_text = f"[{'✓' if done else '○'}] {t_content} @ {t_time}"
+                        settings.todo_list.addItem(item_text)
+
+        self._append_assistant_message(f"✅ 待办已添加: {content}\n将在 {time_str} 提醒你")
 
     def _append_assistant_message(self, text, scroll=True):
         """添加 AI 消息"""

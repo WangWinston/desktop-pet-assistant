@@ -3,6 +3,7 @@ config.yaml
 
 # 聊天历史数据
 data/chat_history.json
+data/todos.json
 
 # Python
 __pycache__/

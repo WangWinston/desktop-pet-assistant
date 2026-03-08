@@ -23,6 +23,7 @@ from ui.chat_window import ChatWindow
 from ui.settings_dialog import SettingsDialog
 from utils.config_loader import ConfigLoader
 from utils.logger import get_logger, init_logging
+from utils.todo_storage import TodoStorage
 
 # 模块日志
 log = get_logger("pet")
@@ -124,9 +125,16 @@ class DesktopPet(QWidget):
             self.rest_timer.start(interval_ms)
             log.info(f"休息提醒已启用，间隔: {self._rest_config.get('interval', 3600)}秒")
         
-        # 读取待办提醒配置
-        self._todo_config = self.config.get("todo_reminder", {})
+        # 读取待办提醒配置（开关仍来自 config，具体待办从文件加载）
+        todo_enabled = self.config.get("todo_reminder", {}).get("enabled", True)
+        self._todo_config = {
+            "enabled": todo_enabled,
+            "todos": TodoStorage.load_todos(),
+        }
         self._last_todo_check = {}  # 记录已提醒的待办
+
+        # 更新系统上下文中的待办事项
+        self.persona_manager.update_project_context(todos=self._todo_config.get("todos", []))
 
         # 初始化窗口
         self._init_window()
@@ -206,9 +214,9 @@ class DesktopPet(QWidget):
 
     def _init_tray(self):
         """初始化系统托盘"""
-        icon_path = "assets/tigerIcon.jpg"
+        icon_path = "assets/icon.png"
         if not os.path.exists(icon_path):
-            icon_path = "tigerIcon.jpg"
+            icon_path = "icon.png"
 
         icon = QIcon(icon_path)
         tray_menu = QMenu(self)
@@ -378,6 +386,24 @@ class DesktopPet(QWidget):
             self.talk_label.adjustSize()
             self.talk_label.show()
 
+    def _show_dialog(self, text: str):
+        """显示对话框文本"""
+        font_size = max(10, int(self._pet_size / 12))
+        self.talk_label.setText(text)
+        self.talk_label.setStyleSheet(f"""
+            QLabel {{
+                font-family: 'Microsoft YaHei UI';
+                font-size: {font_size}px;
+                color: #333;
+                background-color: white;
+                border: 1px solid #FFD93D;
+                border-radius: 10px;
+                padding: 6px 10px;
+            }}
+        """)
+        self.talk_label.adjustSize()
+        self.talk_label.show()
+
     def _init_timers(self):
         """初始化定时器"""
         # 对话切换
@@ -454,10 +480,23 @@ class DesktopPet(QWidget):
         # 显示对话框
         self._show_dialog(rest_dialog)
 
+    def refresh_todo_config(self):
+        """刷新待办配置（从文件重新加载）"""
+        todo_enabled = self.config.get("todo_reminder", {}).get("enabled", True)
+        self._todo_config = {
+            "enabled": todo_enabled,
+            "todos": TodoStorage.load_todos(),
+        }
+        # 更新系统上下文中的待办事项
+        self.persona_manager.update_project_context(todos=self._todo_config.get("todos", []))
+
     def _check_todo_reminder(self):
         """检查待办事项是否到提醒时间"""
         from datetime import datetime
         
+        if not self._todo_config.get("enabled", True):
+            return
+
         todos = self._todo_config.get("todos", [])
         if not todos:
             return
@@ -483,16 +522,22 @@ class DesktopPet(QWidget):
     def _show_todo_reminder(self, content: str, time: str):
         """显示待办提醒"""
         self._current_state = self.STATE_REST
-        self._show_state(self.STATE_REST)
+
+        # 只播放休息状态的动画，不显示其对话框
+        state_config = self.states.get(self.STATE_REST, DEFAULT_STATES.get(self.STATE_REST, {}))
+        anim_path = state_config.get("animation", "")
+        if anim_path:
+            self._play_animation(anim_path)
+
         screen = QApplication.primaryScreen().geometry()
         self.move(
             (screen.width() - self.width()) // 2,
             (screen.height() - self.height()) // 2,
         )
-        
+
         # 显示待办提醒
-        rest_dialog = f"📝 待办提醒: {content} @ {time}"
-        self._show_dialog(rest_dialog)
+        todo_dialog = f"📝 待办提醒: {content} @ {time}"
+        self._show_dialog(todo_dialog)
 
     def _reset_to_idle(self):
         """重置为待机状态"""
@@ -564,6 +609,10 @@ class DesktopPet(QWidget):
             self._open_chat()
         elif action == rest_action:
             self._rest_enabled = not self._rest_enabled
+            # 同步更新配置文件
+            self.config.setdefault("rest_reminder", {})
+            self.config["rest_reminder"]["enabled"] = self._rest_enabled
+            ConfigLoader.save(self.config)
             if self._rest_enabled:
                 # 使用配置的间隔（毫秒）
                 interval_ms = self._rest_config.get("interval", 3600) * 1000
@@ -632,8 +681,34 @@ class DesktopPet(QWidget):
             self._load_idle_resources()
             # 更新所有UI
             self.update_all_ui()
-        
+            # 同步更新休息提醒状态
+            self._sync_rest_reminder_state()
+
         self._settings_dialog = None  # 对话框关闭后清除引用
+
+    def _sync_rest_reminder_state(self):
+        """同步休息提醒状态（从配置更新到内存和定时器）"""
+        rest_config = self.config.get("rest_reminder", {})
+        new_enabled = rest_config.get("enabled", False)
+
+        # 如果状态发生变化
+        if new_enabled != self._rest_enabled:
+            self._rest_enabled = new_enabled
+            self._rest_config = rest_config
+
+            if new_enabled:
+                interval_ms = rest_config.get("interval", 3600) * 1000
+                self.rest_timer.start(interval_ms)
+            else:
+                self.rest_timer.stop()
+        else:
+            # 状态没变，但间隔可能变了
+            if new_enabled:
+                new_interval = rest_config.get("interval", 3600) * 1000
+                current_interval = self._rest_config.get("interval", 3600) * 1000
+                if new_interval != current_interval:
+                    self.rest_timer.setInterval(new_interval)
+            self._rest_config = rest_config
 
     def _quit(self):
         """退出程序"""

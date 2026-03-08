@@ -1,5 +1,5 @@
 """人设管理模块"""
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import os
 import re
 import json
@@ -408,6 +408,9 @@ class PersonaManager:
         self._loaded_skills: Optional[Dict[str, dict]] = None
         self._skill_loader: Optional[SkillLoader] = None
 
+        # 工程配置（待办事项等）
+        self._project_context: Dict[str, Any] = {}
+
     def get_skills(self) -> Dict[str, dict]:
         """获取加载的技能（懒加载）"""
         if self._loaded_skills is None and self.skills_enabled:
@@ -487,6 +490,23 @@ class PersonaManager:
         if profile_parts:
             content += "\n\n## 用户画像\n" + "\n\n".join(profile_parts)
 
+        # 添加工程配置（待办事项等）
+        if self._project_context:
+            project_parts = []
+
+            # 待办事项
+            todos = self._project_context.get("todos", [])
+            if todos:
+                todo_lines = []
+                for todo in todos:
+                    if not todo.get("done", False):
+                        todo_lines.append(f"- [{todo.get('time', '')}] {todo.get('content', '')}")
+                if todo_lines:
+                    project_parts.append("**今日待办**:\n" + "\n".join(todo_lines))
+
+            if project_parts:
+                content += "\n\n## 工程配置\n" + "\n\n".join(project_parts)
+
         # 添加技能提示
         if self.skills_enabled:
             skills = self.get_skills()
@@ -494,6 +514,16 @@ class PersonaManager:
                 content += build_skills_prompt(skills)
 
         return {"role": "system", "content": content}
+
+    def update_project_context(self, todos: Optional[List[Dict[str, Any]]] = None):
+        """
+        更新工程上下文
+
+        Args:
+            todos: 待办事项列表
+        """
+        if todos is not None:
+            self._project_context["todos"] = todos
 
     def update_user_profile(self, dimension: str, value: str):
         """

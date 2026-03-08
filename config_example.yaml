@@ -42,7 +42,6 @@ mcp:
 ui:
   pet_size: 100
   chat_window_size: "medium"  # small/medium/large
-  dialog_interval: 5000
 
 # 状态配置 - 可自定义不同状态的动图和对话
 states:
@@ -75,7 +74,7 @@ rest_reminder:
 # 待办提醒配置
 todo_reminder:
   enabled: true  # 默认开启
-  todos: []  # 待办事项列表 [{"content": "会议", "time": "14:30", "done": false}]
+  # 待办事项列表存储在 data/todos.json 中
 
 history:
   auto_save: true
