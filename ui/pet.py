@@ -717,6 +717,9 @@ class DesktopPet(QWidget):
 
     def _quit(self):
         """退出程序"""
+        # 先隐藏聊天窗口
+        if self._chat_window is not None:
+            self._chat_window.hide()
         self.memory_manager.save_to_file()
         messages = self.memory_manager.get_messages()
         if len(messages) >= 4:
