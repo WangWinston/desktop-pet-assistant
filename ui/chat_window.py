@@ -13,6 +13,7 @@ from PyQt5.QtGui import (
     QBrush,
     QTextOption,
     QIcon,
+    QPixmap,
 )
 from PyQt5.QtWidgets import (
     QApplication,
@@ -321,15 +322,26 @@ class WelcomeWidget(QWidget):
         icon_bg_path.addEllipse(QPointF(w / 2, icon_center_y), icon_bg_radius, icon_bg_radius)
         painter.fillPath(icon_bg_path, QColor(Theme.PRIMARY_LIGHT))
 
-        # 绘制图标
-        font_icon = QFont("Segoe UI Emoji", 16)
-        painter.setFont(font_icon)
-        painter.setPen(QColor(Theme.PRIMARY))
-        fm_icon = QFontMetrics(font_icon)
-        icon_text = "⚡"
-        icon_x = int(w / 2 - fm_icon.horizontalAdvance(icon_text) / 2)
-        icon_y = int(icon_center_y + fm_icon.ascent() / 2 - 2)
-        painter.drawText(icon_x, icon_y, icon_text)
+        # 绘制图标（使用 icon.png）
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            icon_pixmap = QPixmap(icon_path)
+            if not icon_pixmap.isNull():
+                icon_size = 40
+                scaled_pixmap = icon_pixmap.scaled(icon_size, icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                icon_x = int(w / 2 - icon_size / 2)
+                icon_y = int(icon_center_y - icon_size / 2)
+                painter.drawPixmap(icon_x, icon_y, scaled_pixmap)
+        else:
+            # 回退到文字图标
+            font_icon = QFont("Segoe UI Emoji", 16)
+            painter.setFont(font_icon)
+            painter.setPen(QColor(Theme.PRIMARY))
+            fm_icon = QFontMetrics(font_icon)
+            icon_text = "🐾"
+            icon_x = int(w / 2 - fm_icon.horizontalAdvance(icon_text) / 2)
+            icon_y = int(icon_center_y + fm_icon.ascent() / 2 - 2)
+            painter.drawText(icon_x, icon_y, icon_text)
 
         # ===== 标题 =====
         font_title = QFont("Microsoft YaHei UI", 14, QFont.Medium)
@@ -860,9 +872,19 @@ class ChatWindow(QWidget):
             }}
         """)
 
+        # 标题图标
+        self.title_icon = QLabel(title_bar)
+        self.title_icon.setGeometry(Spacing.LG, 14, 28, 28)
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            icon_pixmap = QPixmap(icon_path)
+            if not icon_pixmap.isNull():
+                self.title_icon.setPixmap(icon_pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.title_icon.setStyleSheet("background: transparent;")
+
         # 标题
-        self.title_label = QLabel(f"⚡ {self._pet_name}", title_bar)
-        self.title_label.setGeometry(Spacing.LG, 0, w - 220, 56)
+        self.title_label = QLabel(self._pet_name, title_bar)
+        self.title_label.setGeometry(Spacing.LG + 32, 0, w - 250, 56)
         self.title_label.setStyleSheet(f"""
             QLabel {{
                 font-family: 'Microsoft YaHei UI', sans-serif;
@@ -1086,7 +1108,13 @@ class ChatWindow(QWidget):
         """更新人设名称"""
         self._pet_name = new_name
         self.setWindowTitle(new_name)
-        self.title_label.setText(f"⚡ {new_name}")
+        self.title_label.setText(new_name)
+        # 更新标题图标
+        icon_path = "assets/icon.png"
+        if os.path.exists(icon_path):
+            icon_pixmap = QPixmap(icon_path)
+            if not icon_pixmap.isNull():
+                self.title_icon.setPixmap(icon_pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         while self.message_layout.count() > 0:
             item = self.message_layout.takeAt(0)
             if item.widget():
