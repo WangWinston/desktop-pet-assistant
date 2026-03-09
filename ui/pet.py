@@ -23,6 +23,7 @@ from ui.chat_window import ChatWindow
 from ui.settings_dialog import SettingsDialog
 from utils.config_loader import ConfigLoader
 from utils.logger import get_logger, init_logging
+from utils.sound import sound_manager
 from utils.todo_storage import TodoStorage
 
 
@@ -504,14 +505,17 @@ class DesktopPet(QWidget):
             (screen.width() - self.width()) // 2,
             (screen.height() - self.height()) // 2,
         )
-        
+
+        # 播放提醒提示音
+        sound_manager.play_reminder()
+
         # 使用配置的提醒内容
         messages = self._rest_config.get("message", "")
         if messages:
             rest_dialog = messages
         else:
             rest_dialog = self.states.get(self.STATE_REST, {}).get("dialog", "⏰ 该休息啦！")
-        
+
         # 显示对话框
         self._show_dialog(rest_dialog)
 
@@ -569,6 +573,9 @@ class DesktopPet(QWidget):
             (screen.width() - self.width()) // 2,
             (screen.height() - self.height()) // 2,
         )
+
+        # 播放待办提醒提示音
+        sound_manager.play_reminder()
 
         # 显示待办提醒
         todo_dialog = f"📝 待办提醒: {content} @ {time}"

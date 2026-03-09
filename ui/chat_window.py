@@ -37,6 +37,7 @@ from PyQt5.QtWidgets import (
 )
 
 from utils.todo_storage import TodoStorage
+from utils.sound import sound_manager
 import markdown
 
 if TYPE_CHECKING:
@@ -1357,6 +1358,8 @@ class ChatWindow(QWidget):
         self.message_layout.insertWidget(self.message_layout.count() - 1, container)
         if scroll:
             QTimer.singleShot(10, self._scroll_to_bottom)
+        # AI 回复完成提示音
+        sound_manager.play_notification()
 
     def _append_system_message(self, text):
         """系统消息"""
@@ -1367,6 +1370,8 @@ class ChatWindow(QWidget):
         """错误消息"""
         msg = SystemMessageWidget(f"⚠ {text}", is_error=True)
         self.message_layout.insertWidget(self.message_layout.count() - 1, msg)
+        # 错误提示音
+        sound_manager.play_error()
 
     def _scroll_to_bottom(self):
         """滚动到底部"""
