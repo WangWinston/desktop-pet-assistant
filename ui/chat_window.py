@@ -1237,6 +1237,8 @@ class ChatWindow(QWidget):
         self.memory_manager.add_message("assistant", response)
         self._finish_request()
         self._streaming_bubble = None
+        # AI 回复完成提示音
+        sound_manager.play_notification()
 
     def _on_error(self, error):
         """错误处理"""
@@ -1344,7 +1346,7 @@ class ChatWindow(QWidget):
 
         self._append_assistant_message(f"✅ 待办已添加: {content}\n将在 {time_str} 提醒你")
 
-    def _append_assistant_message(self, text, scroll=True):
+    def _append_assistant_message(self, text, scroll=True, play_sound=False):
         """添加 AI 消息"""
         bubble = BubbleWidget(text, is_user=False)
         # 左对齐
@@ -1357,7 +1359,8 @@ class ChatWindow(QWidget):
         if scroll:
             QTimer.singleShot(10, self._scroll_to_bottom)
         # AI 回复完成提示音
-        sound_manager.play_notification()
+        if play_sound:
+            sound_manager.play_notification()
 
     def _append_system_message(self, text):
         """系统消息"""
