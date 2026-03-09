@@ -753,7 +753,7 @@ class ChatWindow(QWidget):
 
         # 创建独立的 Popup 窗口（无父控件，解决 macOS 兼容性问题）
         self._skills_popup = QListWidget()
-        self._skills_popup.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
+        self._skills_popup.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
         self._skills_popup.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self._skills_popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._skills_popup.setFocusPolicy(Qt.NoFocus)
@@ -862,8 +862,6 @@ class ChatWindow(QWidget):
 
         self._skills_popup.setGeometry(x, y, popup_width, popup_height)
         self._skills_popup.show()
-        # Qt.Popup 会抢夺焦点，需要延迟将焦点返回给输入框
-        QTimer.singleShot(0, lambda: self.message_input.setFocus())
 
     def _on_skill_item_activated(self, item: QListWidgetItem):
         """选择某个技能后，将其填充到输入框中"""
